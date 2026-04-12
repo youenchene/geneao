@@ -7,6 +7,7 @@ import { parse, compact } from "gedcom";
 
 export interface Individual {
   id: string;
+  apiId?: string; // Backend UUID (populated from /api/tree)
   name: string;
   displayName: string;
   givenName: string;
@@ -23,6 +24,7 @@ export interface Individual {
 
 export interface Family {
   id: string;
+  apiId?: string; // Backend UUID (populated from /api/tree)
   husbandId: string | null;
   wifeId: string | null;
   childIds: string[];
@@ -160,6 +162,96 @@ export function formatLifespan(indi: Individual): string {
   if (birth && death) return `${birth} - ${death}`;
   if (birth) return `${birth} -`;
   return `- ${death}`;
+}
+
+/**
+ * Build GedcomData directly from the backend /api/tree response.
+ * This avoids the fragile GEDCOM-text → gedcom_id matching and guarantees
+ * every entity carries its backend UUID as `apiId`.
+ */
+export function buildFromApiData(tree: {
+  individuals: Array<{
+    id: string;
+    gedcom_id: string;
+    given_name: string;
+    surname: string;
+    sex: "M" | "F" | "U";
+    birth_date: string;
+    birth_place: string;
+    death_date: string;
+    death_place: string;
+    note: string;
+    photo_url: string;
+  }>;
+  families: Array<{
+    id: string;
+    gedcom_id: string;
+    husband_id: string | null;
+    wife_id: string | null;
+    child_ids: string[];
+    marriage_date: string;
+    marriage_place: string;
+    divorce_date: string;
+    note: string;
+  }>;
+}): GedcomData {
+  const individuals = new Map<string, Individual>();
+  const families = new Map<string, Family>();
+
+  // First pass: create all individuals (keyed by API UUID)
+  for (const api of tree.individuals) {
+    individuals.set(api.id, {
+      id: api.id,
+      apiId: api.id,
+      name: `${api.given_name} /${api.surname}/`,
+      displayName: api.given_name,
+      givenName: api.given_name,
+      surname: api.surname,
+      sex: api.sex === "F" ? "F" : api.sex === "M" ? "M" : "U",
+      birthDate: api.birth_date,
+      birthPlace: api.birth_place,
+      deathDate: api.death_date,
+      deathPlace: api.death_place,
+      note: api.note,
+      familiesAsSpouse: [],
+      familyAsChild: null,
+    });
+  }
+
+  // Second pass: create families and wire up cross-references
+  for (const api of tree.families) {
+    const childIds = (api.child_ids || []).filter((id) => individuals.has(id));
+
+    families.set(api.id, {
+      id: api.id,
+      apiId: api.id,
+      husbandId: api.husband_id && individuals.has(api.husband_id) ? api.husband_id : null,
+      wifeId: api.wife_id && individuals.has(api.wife_id) ? api.wife_id : null,
+      childIds,
+      marriageDate: api.marriage_date,
+      marriagePlace: api.marriage_place,
+      divorceDate: api.divorce_date,
+      note: api.note,
+    });
+
+    // Wire spouse back-references
+    if (api.husband_id && individuals.has(api.husband_id)) {
+      individuals.get(api.husband_id)!.familiesAsSpouse.push(api.id);
+    }
+    if (api.wife_id && individuals.has(api.wife_id)) {
+      individuals.get(api.wife_id)!.familiesAsSpouse.push(api.id);
+    }
+
+    // Wire child back-references (first family wins)
+    for (const cid of childIds) {
+      const child = individuals.get(cid);
+      if (child && !child.familyAsChild) {
+        child.familyAsChild = api.id;
+      }
+    }
+  }
+
+  return { individuals, families, raw: "" };
 }
 
 /**

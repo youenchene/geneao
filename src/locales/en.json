@@ -1,0 +1,78 @@
+{
+  "app": {
+    "name": "Geneao",
+    "loading": "Loading GEDCOM data\u2026",
+    "error": "Error: {{message}}",
+    "noData": "No data loaded",
+    "logout": "Logout"
+  },
+  "login": {
+    "title": "Geneao",
+    "subtitle": "Enter the shared password to access the family tree",
+    "password": "Password",
+    "signIn": "Sign In",
+    "signingIn": "Signing in\u2026",
+    "invalidPassword": "Invalid password"
+  },
+  "editMode": {
+    "editing": "\u270f\ufe0f Editing",
+    "viewing": "\ud83d\udc41\ufe0f Viewing",
+    "switchToView": "Switch to view mode",
+    "switchToEdit": "Switch to edit mode"
+  },
+  "search": {
+    "title": "Search person",
+    "placeholder": "Search by name\u2026",
+    "noResults": "No results"
+  },
+  "viewer": {
+    "noData": "No tree data to display.",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "fitToScreen": "Fit to screen"
+  },
+  "editPerson": {
+    "title": "Edit Person",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "birthDate": "Birth Date",
+    "deathDate": "Death Date",
+    "birthDatePlaceholder": "e.g. 1 JAN 1980",
+    "deathDatePlaceholder": "e.g. 15 MAR 2020",
+    "photo": "Photo",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving\u2026",
+    "saveFailed": "Save failed"
+  },
+  "addPerson": {
+    "addSpouse": "Add Spouse",
+    "addChild": "Add Child",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "sex": "Sex",
+    "male": "Male",
+    "female": "Female",
+    "unknown": "Unknown",
+    "add": "Add",
+    "cancel": "Cancel",
+    "failed": "Failed to create person"
+  },
+  "menu": {
+    "label": "Menu",
+    "importGedcom": "Import GEDCOM File"
+  },
+  "import": {
+    "title": "Import GEDCOM File",
+    "selectFile": "Select a .ged file to import",
+    "import": "Import",
+    "importing": "Importing…",
+    "cancel": "Cancel",
+    "failed": "Import failed: {{message}}"
+  },
+  "language": {
+    "label": "Language",
+    "fr": "Français",
+    "en": "English"
+  }
+}

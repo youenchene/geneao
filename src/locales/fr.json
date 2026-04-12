@@ -1,0 +1,78 @@
+{
+  "app": {
+    "name": "Geneao",
+    "loading": "Chargement des donn\u00e9es\u2026",
+    "error": "Erreur : {{message}}",
+    "noData": "Aucune donn\u00e9e charg\u00e9e",
+    "logout": "D\u00e9connexion"
+  },
+  "login": {
+    "title": "Geneao",
+    "subtitle": "Entrez le mot de passe partag\u00e9 pour acc\u00e9der \u00e0 l\u2019arbre g\u00e9n\u00e9alogique",
+    "password": "Mot de passe",
+    "signIn": "Se connecter",
+    "signingIn": "Connexion\u2026",
+    "invalidPassword": "Mot de passe invalide"
+  },
+  "editMode": {
+    "editing": "\u270f\ufe0f \u00c9dition",
+    "viewing": "\ud83d\udc41\ufe0f Consultation",
+    "switchToView": "Passer en mode consultation",
+    "switchToEdit": "Passer en mode \u00e9dition"
+  },
+  "search": {
+    "title": "Rechercher une personne",
+    "placeholder": "Rechercher par nom\u2026",
+    "noResults": "Aucun r\u00e9sultat"
+  },
+  "viewer": {
+    "noData": "Aucune donn\u00e9e d\u2019arbre \u00e0 afficher.",
+    "zoomIn": "Zoomer",
+    "zoomOut": "D\u00e9zoomer",
+    "fitToScreen": "Ajuster \u00e0 l\u2019\u00e9cran"
+  },
+  "editPerson": {
+    "title": "Modifier la personne",
+    "firstName": "Pr\u00e9nom",
+    "lastName": "Nom de famille",
+    "birthDate": "Date de naissance",
+    "deathDate": "Date de d\u00e9c\u00e8s",
+    "birthDatePlaceholder": "ex. 1 JAN 1980",
+    "deathDatePlaceholder": "ex. 15 MAR 2020",
+    "photo": "Photo",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "saving": "Enregistrement\u2026",
+    "saveFailed": "\u00c9chec de l\u2019enregistrement"
+  },
+  "addPerson": {
+    "addSpouse": "Ajouter un conjoint",
+    "addChild": "Ajouter un enfant",
+    "firstName": "Pr\u00e9nom",
+    "lastName": "Nom de famille",
+    "sex": "Sexe",
+    "male": "Homme",
+    "female": "Femme",
+    "unknown": "Inconnu",
+    "add": "Ajouter",
+    "cancel": "Annuler",
+    "failed": "\u00c9chec de la cr\u00e9ation"
+  },
+  "menu": {
+    "label": "Menu",
+    "importGedcom": "Importer un fichier GEDCOM"
+  },
+  "import": {
+    "title": "Importer un fichier GEDCOM",
+    "selectFile": "Sélectionnez un fichier .ged à importer",
+    "import": "Importer",
+    "importing": "Importation…",
+    "cancel": "Annuler",
+    "failed": "Échec de l'importation : {{message}}"
+  },
+  "language": {
+    "label": "Langue",
+    "fr": "Français",
+    "en": "English"
+  }
+}

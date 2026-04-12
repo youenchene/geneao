@@ -1,0 +1,73 @@
+name: Setup Clever Cloud Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'yes' to confirm infrastructure creation"
+        required: true
+        default: "no"
+
+jobs:
+  setup:
+    if: github.event.inputs.confirm == 'yes'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clever Cloud CLI
+        run: npm install -g clever-tools
+
+      - name: Login to Clever Cloud
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+        run: clever login --token "$CLEVER_TOKEN" --secret "$CLEVER_SECRET"
+
+      - name: Create Go backend application
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+          GENEAO_PASSWORD: ${{ secrets.GENEAO_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          clever create geneao_backend --type go --org youenchene --region par || echo "App may already exist"
+          clever env set PORT 8080
+          clever env set GENEAO_PASSWORD "$GENEAO_PASSWORD"
+          clever env set JWT_SECRET "$JWT_SECRET"
+
+      - name: Create PostgreSQL add-on
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+        run: |
+          clever addon create postgresql-addon geneao_db --org youenchene --plan s_sml || echo "Addon may already exist"
+          clever service link-addon geneao_db
+
+      - name: Create Cellar (S3) add-on
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+        run: |
+          clever addon create cellar-addon geneao_storage --org youenchene --plan s || echo "Addon may already exist"
+          clever service link-addon geneao_storage
+
+      - name: Create static frontend application
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+        run: |
+          clever create geneao_frontend --type static-apache --org youenchene --region par || echo "App may already exist"
+
+      - name: Summary
+        run: |
+          echo "Clever Cloud infrastructure created:"
+          echo "  - geneao_backend (Go)"
+          echo "  - geneao_frontend (Static)"
+          echo "  - geneao_db (PostgreSQL)"
+          echo "  - geneao_storage (Cellar/S3)"
+          echo ""
+          echo "Next steps:"
+          echo "  1. Set S3 env vars on backend from Cellar addon"
+          echo "  2. Run DB migrations"
+          echo "  3. Deploy via 'Deploy to Clever Cloud' workflow"

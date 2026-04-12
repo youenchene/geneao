@@ -1,9 +1,15 @@
 /**
  * SVG person card for the custom tree viewer.
- * Renders a rectangle with name (wrapping to 2 lines if needed) and lifespan.
+ * Renders a rectangle with photo, name (wrapping to 2 lines if needed) and lifespan.
+ * Shows an edit button in edit mode.
  */
+import { useState } from "react";
+import { createPortal } from "react-dom";
 import type { Individual } from "../lib/gedcom-parser";
 import { formatLifespan } from "../lib/gedcom-parser";
+import { getDefaultAvatar } from "../lib/avatars";
+import { useEditMode } from "../context/EditModeContext";
+import PersonEditModal from "./PersonEditModal";
 
 interface Props {
   individual: Individual;
@@ -11,25 +17,26 @@ interface Props {
   y: number;
   width: number;
   height: number;
+  photoUrl?: string;
+  onDataChanged?: () => void;
 }
 
 const COLORS = {
-  M: { fill: "#dbeafe", stroke: "#3b82f6", text: "#1e3a5f" },
-  F: { fill: "#fce7f3", stroke: "#ec4899", text: "#5f1e3a" },
-  U: { fill: "#f1f5f9", stroke: "#94a3b8", text: "#334155" },
+  M: { fill: "#f0f9ff", stroke: "#7dd3fc", text: "#0c4a6e" },
+  F: { fill: "#fff1f2", stroke: "#fda4af", text: "#881337" },
+  U: { fill: "#f5f5f4", stroke: "#a8a29e", text: "#44403c" },
 };
 
 const FONT_SIZE = 10;
 const PADDING = 4;
+const PHOTO_SIZE = 24;
 
 /**
  * Split a name into lines that fit within a given character limit.
- * Tries to split on spaces; falls back to truncation.
  */
 function wrapName(name: string, maxCharsPerLine: number): string[] {
   if (name.length <= maxCharsPerLine) return [name];
 
-  // Try to split on a space near the middle
   const words = name.split(" ");
   if (words.length >= 2) {
     const line1: string[] = [];
@@ -53,66 +60,161 @@ function wrapName(name: string, maxCharsPerLine: number): string[] {
     }
   }
 
-  // Single long word: truncate
   return [name.slice(0, maxCharsPerLine - 1) + "."];
 }
 
-export default function PersonCard({ individual, x, y, width, height }: Props) {
+export default function PersonCard({
+  individual,
+  x,
+  y,
+  width,
+  height,
+  photoUrl,
+  onDataChanged,
+}: Props) {
   const colors = COLORS[individual.sex];
   const lifespan = formatLifespan(individual);
-  const name = individual.displayName || individual.givenName || "?";
+  const givenName = individual.givenName || individual.displayName || "?";
+  const surname = individual.surname || "";
+  const { editMode } = useEditMode();
+  const [showEditModal, setShowEditModal] = useState(false);
 
-  // Estimate max chars that fit: ~6px per character at font-size 10
-  const maxChars = Math.floor((width - PADDING * 2) / 5.8);
-  const lines = wrapName(name, maxChars);
+  // Resolve photo: API photo > default avatar
+  const imgSrc = photoUrl || getDefaultAvatar(individual.sex, individual.birthDate, individual.deathDate);
+
+  // Estimate max chars that fit (accounting for photo space)
+  const textAreaWidth = width - PADDING * 2 - PHOTO_SIZE - 4;
+  const maxChars = Math.floor(textAreaWidth / 5.8);
+
+  // Given name on first line(s), surname on a dedicated second line
+  const givenLines = wrapName(givenName, maxChars);
+  const surnameLines = surname ? wrapName(surname.toUpperCase(), maxChars) : [];
+  const lines = [...givenLines, ...surnameLines];
+  const surnameStartIndex = givenLines.length;
   const hasLifespan = !!lifespan;
 
-  // Compute vertical positions
-  const totalTextLines = lines.length + (hasLifespan ? 1 : 0);
   const lineHeight = FONT_SIZE + 3;
+  const totalTextLines = lines.length + (hasLifespan ? 1 : 0);
   const blockHeight = totalTextLines * lineHeight;
   const startTextY = (height - blockHeight) / 2 + FONT_SIZE;
 
+  const textStartX = x + PHOTO_SIZE + PADDING + 4;
+
   return (
-    <g transform={`translate(${x}, ${y})`}>
-      <rect
-        width={width}
-        height={height}
-        rx={6}
-        ry={6}
-        fill={colors.fill}
-        stroke={colors.stroke}
-        strokeWidth={1.5}
-      />
-      {lines.map((line, i) => (
-        <text
-          key={i}
-          x={width / 2}
-          y={startTextY + i * lineHeight}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill={colors.text}
-          fontSize={FONT_SIZE}
-          fontWeight={600}
-          fontFamily="system-ui, sans-serif"
-        >
-          {line}
-        </text>
-      ))}
-      {hasLifespan && (
-        <text
-          x={width / 2}
-          y={startTextY + lines.length * lineHeight}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fill={colors.text}
-          fontSize={9}
-          opacity={0.7}
-          fontFamily="system-ui, sans-serif"
-        >
-          {lifespan}
-        </text>
-      )}
-    </g>
+    <>
+      <g transform={`translate(0, 0)`}>
+        <rect
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          rx={6}
+          ry={6}
+          fill={colors.fill}
+          stroke={colors.stroke}
+          strokeWidth={1.5}
+        />
+
+        {/* Photo / avatar */}
+        <clipPath id={`photo-clip-${individual.id}`}>
+          <circle cx={x + PADDING + PHOTO_SIZE / 2} cy={y + height / 2} r={PHOTO_SIZE / 2} />
+        </clipPath>
+        <image
+          href={imgSrc}
+          x={x + PADDING}
+          y={y + height / 2 - PHOTO_SIZE / 2}
+          width={PHOTO_SIZE}
+          height={PHOTO_SIZE}
+          clipPath={`url(#photo-clip-${individual.id})`}
+          preserveAspectRatio="xMidYMid slice"
+        />
+        <circle
+          cx={x + PADDING + PHOTO_SIZE / 2}
+          cy={y + height / 2}
+          r={PHOTO_SIZE / 2}
+          fill="none"
+          stroke={colors.stroke}
+          strokeWidth={0.5}
+          opacity={0.5}
+        />
+
+        {/* Name lines: given name then surname */}
+        {lines.map((line, i) => (
+          <text
+            key={i}
+            x={textStartX + (width - PHOTO_SIZE - PADDING * 2 - 4) / 2}
+            y={y + startTextY + i * lineHeight}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill={colors.text}
+            fontSize={i >= surnameStartIndex ? FONT_SIZE - 1 : FONT_SIZE}
+            fontWeight={i >= surnameStartIndex ? 700 : 600}
+            fontFamily="system-ui, sans-serif"
+          >
+            {line}
+          </text>
+        ))}
+
+        {/* Lifespan */}
+        {hasLifespan && (
+          <text
+            x={textStartX + (width - PHOTO_SIZE - PADDING * 2 - 4) / 2}
+            y={y + startTextY + lines.length * lineHeight}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fill={colors.text}
+            fontSize={9}
+            opacity={0.7}
+            fontFamily="system-ui, sans-serif"
+          >
+            {lifespan}
+          </text>
+        )}
+
+        {/* Edit button (only in edit mode) */}
+        {editMode && (
+          <g
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowEditModal(true);
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            <rect
+              x={x + width - 18}
+              y={y + 2}
+              width={16}
+              height={16}
+              rx={3}
+              fill="white"
+              stroke={colors.stroke}
+              strokeWidth={0.5}
+              opacity={0.9}
+            />
+            <text
+              x={x + width - 10}
+              y={y + 12}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={10}
+              fill={colors.text}
+            >
+              ✎
+            </text>
+          </g>
+        )}
+      </g>
+
+      {/* Edit modal rendered as a portal in the DOM root (outside SVG) */}
+      {showEditModal &&
+        createPortal(
+          <PersonEditModal
+            individual={individual}
+            onClose={() => setShowEditModal(false)}
+            onSaved={() => onDataChanged?.()}
+          />,
+          document.body
+        )}
+    </>
   );
 }

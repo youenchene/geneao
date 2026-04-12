@@ -1,17 +1,23 @@
 /**
  * Renders a tree node: either a couple (two person cards side-by-side)
- * or a single individual card. Supports highlighting a specific person.
+ * or a single individual card. Supports highlighting, edit mode with
+ * add alliance/child buttons.
  */
 import { useState } from "react";
+import type { GedcomData } from "../lib/gedcom-parser";
 import type { PositionedNode } from "../lib/tree-layout";
+import { useEditMode } from "../context/EditModeContext";
 import PersonCard from "./PersonCard";
+import AddPersonButton from "./AddPersonButton";
 
 interface Props {
   posNode: PositionedNode;
+  data: GedcomData;
   onToggleCollapse?: (nodeId: string) => void;
   isCollapsed?: boolean;
   childCount?: number;
   highlightedPersonId?: string | null;
+  onDataChanged?: () => void;
 }
 
 const CARD_W = 90;
@@ -21,14 +27,24 @@ const COUPLE_GAP = 8;
 export const NODE_WIDTH = CARD_W * 2 + COUPLE_GAP;
 export const NODE_HEIGHT = CARD_H;
 
+/** Resolve GEDCOM child IDs of a family to their backend API UUIDs. */
+function getChildApiIds(data: GedcomData, family: { childIds: string[] }): string[] {
+  return family.childIds
+    .map((cid) => data.individuals.get(cid)?.apiId)
+    .filter((id): id is string => !!id);
+}
+
 export default function TreeNodeView({
   posNode,
+  data,
   onToggleCollapse,
   isCollapsed,
   childCount,
   highlightedPersonId,
+  onDataChanged,
 }: Props) {
   const [hovered, setHovered] = useState(false);
+  const { editMode } = useEditMode();
   const { node, x, y } = posNode;
 
   // Center the node at (x, y)
@@ -66,6 +82,7 @@ export default function TreeNodeView({
               y={startY}
               width={CARD_W}
               height={CARD_H}
+              onDataChanged={onDataChanged}
             />
           </>
         )}
@@ -91,6 +108,7 @@ export default function TreeNodeView({
               y={startY}
               width={CARD_W}
               height={CARD_H}
+              onDataChanged={onDataChanged}
             />
           </>
         )}
@@ -101,7 +119,7 @@ export default function TreeNodeView({
             y1={startY + CARD_H / 2}
             x2={startX + CARD_W + COUPLE_GAP}
             y2={startY + CARD_H / 2}
-            stroke="#94a3b8"
+            stroke="#a8a29e"
             strokeWidth={1.5}
           />
         )}
@@ -113,11 +131,48 @@ export default function TreeNodeView({
             width={NODE_WIDTH}
             height={CARD_H}
             rx={6}
-            fill="#f1f5f9"
-            stroke="#94a3b8"
+            fill="#f5f5f4"
+            stroke="#a8a29e"
             strokeWidth={1}
           />
         )}
+
+        {/* Edit mode: Add alliance button (right side) */}
+        {editMode && node.husband && !node.wife && (
+          <AddPersonButton
+            type="alliance"
+            x={startX + CARD_W + COUPLE_GAP + CARD_W / 2}
+            y={startY + CARD_H / 2}
+            linkedIndividualApiId={node.husband.apiId || ""}
+            linkedIndividualSex={node.husband.sex}
+            onCreated={() => onDataChanged?.()}
+          />
+        )}
+        {editMode && node.wife && !node.husband && (
+          <AddPersonButton
+            type="alliance"
+            x={startX + CARD_W / 2}
+            y={startY + CARD_H / 2}
+            linkedIndividualApiId={node.wife.apiId || ""}
+            linkedIndividualSex={node.wife.sex}
+            onCreated={() => onDataChanged?.()}
+          />
+        )}
+
+        {/* Edit mode: Add child button (bottom) */}
+        {editMode && (
+          <AddPersonButton
+            type="child"
+            x={x}
+            y={startY + CARD_H + 28}
+            linkedIndividualApiId={node.husband?.apiId || node.wife?.apiId || ""}
+            linkedIndividualSex={node.husband?.sex || node.wife?.sex}
+            familyApiId={node.family?.apiId || ""}
+            existingChildApiIds={node.family ? getChildApiIds(data, node.family) : []}
+            onCreated={() => onDataChanged?.()}
+          />
+        )}
+
         {/* Collapse/expand toggle */}
         {childCount !== undefined && childCount > 0 && (
           <g
@@ -131,8 +186,8 @@ export default function TreeNodeView({
               cx={x}
               cy={startY + CARD_H + 12}
               r={9}
-              fill={hovered ? "#e2e8f0" : "white"}
-              stroke="#94a3b8"
+              fill={hovered ? "#e7e5e4" : "white"}
+              stroke="#a8a29e"
               strokeWidth={1}
             />
             <text
@@ -141,7 +196,7 @@ export default function TreeNodeView({
               textAnchor="middle"
               dominantBaseline="central"
               fontSize={10}
-              fill="#475569"
+              fill="#57534e"
               fontFamily="system-ui, sans-serif"
               fontWeight={700}
             >
@@ -178,7 +233,20 @@ export default function TreeNodeView({
         y={startY}
         width={CARD_W}
         height={CARD_H}
+        onDataChanged={onDataChanged}
       />
+
+      {/* Edit mode: Add alliance button (right side of single person) */}
+      {editMode && node.individual && (
+        <AddPersonButton
+          type="alliance"
+          x={x + CARD_W / 2 + 14}
+          y={startY + CARD_H / 2}
+          linkedIndividualApiId={node.individual.apiId || ""}
+          linkedIndividualSex={node.individual.sex}
+          onCreated={() => onDataChanged?.()}
+        />
+      )}
     </g>
   );
 }

@@ -2,7 +2,8 @@
  * Search panel: a toggle button that opens a search input.
  * Searches individuals by name and zooms to the selected person's node.
  */
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useControls } from "react-zoom-pan-pinch";
 import type { GedcomData, Individual } from "../lib/gedcom-parser";
 import type { PositionedNode, TreeLayout } from "../lib/tree-layout";
@@ -15,10 +16,6 @@ interface Props {
   onHighlight: (personId: string | null) => void;
 }
 
-/**
- * Find the PositionedNode that contains a given individual ID
- * (either as husband, wife, or single individual).
- */
 function findNodeForPerson(
   layout: TreeLayout,
   personId: string
@@ -34,9 +31,6 @@ function findNodeForPerson(
   return null;
 }
 
-/**
- * Normalize a string for fuzzy matching: lowercase, strip accents.
- */
 function normalize(s: string): string {
   return s
     .toLowerCase()
@@ -50,55 +44,62 @@ export default function SearchPanel({
   wrapperRef,
   onHighlight,
 }: Props) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const { setTransform } = useControls();
 
-  // Build sorted list of individuals for searching
   const allIndividuals = useMemo(() => {
     const list: Individual[] = [];
     for (const indi of data.individuals.values()) {
       list.push(indi);
     }
     list.sort((a, b) => {
-      const nameA = a.displayName || a.givenName || "";
-      const nameB = b.displayName || b.givenName || "";
-      return nameA.localeCompare(nameB);
+      const surnameA = a.surname || "";
+      const surnameB = b.surname || "";
+      const cmp = surnameA.localeCompare(surnameB);
+      if (cmp !== 0) return cmp;
+      const givenA = a.displayName || a.givenName || "";
+      const givenB = b.displayName || b.givenName || "";
+      return givenA.localeCompare(givenB);
     });
     return list;
   }, [data]);
 
-  // Filter results based on query
   const results = useMemo(() => {
     if (!query.trim()) return [];
     const q = normalize(query.trim());
     return allIndividuals
       .filter((indi) => {
-        const name = normalize(
+        const given = normalize(
           indi.displayName || indi.givenName || indi.name || ""
         );
-        return name.includes(q);
+        const surname = normalize(indi.surname || "");
+        return given.includes(q) || surname.includes(q);
       })
       .slice(0, 12);
   }, [query, allIndividuals]);
 
-  // Reset selection when results change
-  useEffect(() => {
+  // Reset selected index when results change (adjust state during render)
+  const [prevResults, setPrevResults] = useState(results);
+  if (results !== prevResults) {
+    setPrevResults(results);
     setSelectedIndex(0);
-  }, [results]);
+  }
 
-  // Focus input when opened
+  const closePanel = useCallback(() => {
+    setOpen(false);
+    setQuery("");
+    onHighlight(null);
+  }, [onHighlight]);
+
   useEffect(() => {
     if (open && inputRef.current) {
       inputRef.current.focus();
     }
-    if (!open) {
-      setQuery("");
-      onHighlight(null);
-    }
-  }, [open, onHighlight]);
+  }, [open]);
 
   function selectPerson(person: Individual) {
     const posNode = findNodeForPerson(layout, person.id);
@@ -106,13 +107,12 @@ export default function SearchPanel({
 
     onHighlight(person.id);
 
-    // Compute transform to center the node in the viewport
     const wrapper = wrapperRef.current;
     const wrapperRect = wrapper.getBoundingClientRect();
     const viewW = wrapperRect.width;
     const viewH = wrapperRect.height;
 
-    const scale = 1.0; // Zoom in close enough to see surrounding cards
+    const scale = 1.0;
     const nodeX = posNode.x;
     const nodeY = posNode.y + NODE_HEIGHT / 2;
 
@@ -120,7 +120,7 @@ export default function SearchPanel({
     const translateY = viewH / 2 - nodeY * scale;
 
     setTransform(translateX, translateY, scale, 300);
-    setOpen(false);
+    closePanel();
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -134,19 +134,19 @@ export default function SearchPanel({
       e.preventDefault();
       selectPerson(results[selectedIndex]);
     } else if (e.key === "Escape") {
-      setOpen(false);
+      closePanel();
     }
   }
 
   const btnClass =
-    "w-8 h-8 flex items-center justify-center bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-100 text-gray-700 text-sm font-bold select-none cursor-pointer";
+    "w-8 h-8 flex items-center justify-center bg-white border border-stone-300 rounded shadow-sm hover:bg-stone-100 text-stone-700 text-sm font-bold select-none cursor-pointer";
 
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
         className={btnClass}
-        title="Search person"
+        title={t("search.title")}
       >
         🔍
       </button>
@@ -154,21 +154,21 @@ export default function SearchPanel({
   }
 
   return (
-    <div className="w-64 bg-white border border-gray-300 rounded-lg shadow-lg overflow-hidden">
-      <div className="flex items-center border-b border-gray-200 px-2">
-        <span className="text-gray-400 text-sm mr-1">🔍</span>
+    <div className="w-64 bg-white border border-stone-300 rounded-lg shadow-lg overflow-hidden">
+      <div className="flex items-center border-b border-stone-200 px-2">
+        <span className="text-stone-400 text-sm mr-1">🔍</span>
         <input
           ref={inputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Search by name..."
+          placeholder={t("search.placeholder")}
           className="flex-1 py-2 px-1 text-sm outline-none bg-transparent"
         />
         <button
-          onClick={() => setOpen(false)}
-          className="text-gray-400 hover:text-gray-600 text-xs px-1 cursor-pointer"
+          onClick={closePanel}
+          className="text-stone-400 hover:text-stone-600 text-xs px-1 cursor-pointer"
         >
           ✕
         </button>
@@ -176,23 +176,31 @@ export default function SearchPanel({
       {results.length > 0 && (
         <ul className="max-h-60 overflow-y-auto">
           {results.map((person, i) => {
-            const name =
+            const given =
               person.displayName || person.givenName || person.name || "?";
+            const surname = person.surname || "";
             const year = person.birthDate?.match(/\d{4}/)?.[0] || "";
             return (
               <li
                 key={person.id}
                 className={`px-3 py-1.5 text-sm cursor-pointer flex justify-between items-center ${
                   i === selectedIndex
-                    ? "bg-blue-50 text-blue-800"
-                    : "text-gray-700 hover:bg-gray-50"
+                    ? "bg-amber-50 text-amber-900"
+                    : "text-stone-700 hover:bg-stone-50"
                 }`}
                 onClick={() => selectPerson(person)}
                 onMouseEnter={() => setSelectedIndex(i)}
               >
-                <span className="truncate">{name}</span>
+                <span className="truncate">
+                  {given}
+                  {surname && (
+                    <span className="font-semibold ml-1">
+                      {surname.toUpperCase()}
+                    </span>
+                  )}
+                </span>
                 {year && (
-                  <span className="text-xs text-gray-400 ml-2 shrink-0">
+                  <span className="text-xs text-stone-400 ml-2 shrink-0">
                     {year}
                   </span>
                 )}
@@ -202,7 +210,7 @@ export default function SearchPanel({
         </ul>
       )}
       {query.trim() && results.length === 0 && (
-        <div className="px-3 py-2 text-sm text-gray-400">No results</div>
+        <div className="px-3 py-2 text-sm text-stone-400">{t("search.noResults")}</div>
       )}
     </div>
   );

@@ -4,6 +4,7 @@
  * and custom SVG components for rendering.
  */
 import { useMemo, useState, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   TransformWrapper,
   TransformComponent,
@@ -21,6 +22,7 @@ import SearchPanel from "../components/SearchPanel";
 
 interface Props {
   data: GedcomData;
+  onDataChanged?: () => void;
 }
 
 /**
@@ -96,10 +98,11 @@ function Controls({
   wrapperRef: React.RefObject<HTMLDivElement | null>;
   onHighlight: (personId: string | null) => void;
 }) {
+  const { t } = useTranslation();
   const { zoomIn, zoomOut, resetTransform } = useControls();
 
   const btnClass =
-    "w-8 h-8 flex items-center justify-center bg-white border border-gray-300 rounded shadow-sm hover:bg-gray-100 text-gray-700 text-lg font-bold select-none cursor-pointer";
+    "w-8 h-8 flex items-center justify-center bg-white border border-stone-300 rounded shadow-sm hover:bg-stone-100 text-stone-700 text-lg font-bold select-none cursor-pointer";
 
   return (
     <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 items-end">
@@ -112,21 +115,21 @@ function Controls({
       <button
         onClick={() => zoomIn(0.3)}
         className={btnClass}
-        title="Zoom in"
+        title={t("viewer.zoomIn")}
       >
         +
       </button>
       <button
         onClick={() => zoomOut(0.3)}
         className={btnClass}
-        title="Zoom out"
+        title={t("viewer.zoomOut")}
       >
         −
       </button>
       <button
         onClick={() => resetTransform()}
         className={`${btnClass} text-xs font-semibold`}
-        title="Fit to screen"
+        title={t("viewer.fitToScreen")}
       >
         ⊞
       </button>
@@ -134,7 +137,8 @@ function Controls({
   );
 }
 
-export default function CustomViewerPage({ data }: Props) {
+export default function CustomViewerPage({ data, onDataChanged }: Props) {
+  const { t } = useTranslation();
   const layout = useMemo(() => computeTreeLayout(data), [data]);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
   const [highlightedPersonId, setHighlightedPersonId] = useState<string | null>(
@@ -165,14 +169,14 @@ export default function CustomViewerPage({ data }: Props) {
 
   if (nodes.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
-        No tree data to display.
+      <div className="flex items-center justify-center h-full text-stone-500">
+        {t("viewer.noData")}
       </div>
     );
   }
 
   return (
-    <div ref={wrapperRef} className="relative w-full h-full bg-gray-50">
+    <div ref={wrapperRef} className="relative w-full h-full bg-stone-50">
       <TransformWrapper
         initialScale={0.4}
         minScale={0.05}
@@ -208,7 +212,7 @@ export default function CustomViewerPage({ data }: Props) {
                         L ${edge.childX} ${midY}
                         L ${edge.childX} ${edge.childY}`}
                     fill="none"
-                    stroke="#cbd5e1"
+                    stroke="#d6d3d1"
                     strokeWidth={1.5}
                   />
                 );
@@ -220,10 +224,12 @@ export default function CustomViewerPage({ data }: Props) {
                 <TreeNodeView
                   key={posNode.node.id}
                   posNode={posNode}
+                  data={data}
                   onToggleCollapse={toggleCollapse}
                   isCollapsed={collapsedIds.has(posNode.node.id)}
                   childCount={countDirectChildren(layout, posNode)}
                   highlightedPersonId={highlightedPersonId}
+                  onDataChanged={onDataChanged}
                 />
               ))}
             </g>

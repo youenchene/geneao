@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Backend
+backend/geneao-server
+backend/tmp/
+
+# Docker
+.docker-data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,0 +1,87 @@
+services:
+  # ---- PostgreSQL ----
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: geneao
+      POSTGRES_PASSWORD: geneao
+      POSTGRES_DB: geneao
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geneao"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---- RustFS (S3-compatible storage) ----
+  storage:
+    image: rustfs/rustfs:latest
+    command: server /data --console-address ":9001"
+    environment:
+      RUSTFS_ROOT_USER: minioadmin
+      RUSTFS_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # Console UI
+    volumes:
+      - s3data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---- Create S3 bucket ----
+  storage-init:
+    image: rustfs/rc:latest
+    depends_on:
+      storage:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        rc alias set local http://storage:9000 minioadmin minioadmin &&
+        rc mb --ignore-existing local/geneao &&
+        echo 'Bucket ready'
+
+  # ---- Go Backend ----
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8080"
+      DATABASE_URL: postgres://geneao:geneao@db:5432/geneao?sslmode=disable
+      GENEAO_PASSWORD: changeme
+      JWT_SECRET: local-dev-secret-change-in-prod
+      S3_ENDPOINT: http://storage:9000
+      S3_BUCKET: geneao
+      S3_REGION: us-east-1
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      ALLOWED_ORIGINS: http://localhost:5173
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+
+  # ---- Frontend (nginx serving static build) ----
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  s3data:

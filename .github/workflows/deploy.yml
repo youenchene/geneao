@@ -1,0 +1,56 @@
+name: Deploy to Clever Cloud
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+jobs:
+  deploy-backend:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clever Cloud CLI
+        run: npm install -g clever-tools
+
+      - name: Deploy backend to Clever Cloud
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+        run: |
+          clever login --token "$CLEVER_TOKEN" --secret "$CLEVER_SECRET"
+          clever link geneao_backend --org youenchene
+          clever deploy --force
+
+  deploy-frontend:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Clever Cloud CLI
+        run: npm install -g clever-tools
+
+      - name: Deploy frontend to Clever Cloud
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+        run: |
+          clever login --token "$CLEVER_TOKEN" --secret "$CLEVER_SECRET"
+          clever link geneao_frontend --org youenchene
+          clever deploy --force
