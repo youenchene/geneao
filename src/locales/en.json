@@ -65,7 +65,9 @@
   },
   "menu": {
     "label": "Menu",
-    "importGedcom": "Import GEDCOM File"
+    "importGedcom": "Import GEDCOM File",
+    "exportGedcom": "Export to GEDCOM",
+    "exportingGedcom": "Exporting…"
   },
   "import": {
     "title": "Import GEDCOM File",

@@ -409,6 +409,29 @@ func (h *Handler) GetGedcomFile(c echo.Context) error {
 	return c.String(http.StatusOK, gedcomText)
 }
 
+// DownloadLatestGedcom fetches the most recent GEDCOM backup from S3 and streams it to the client.
+func (h *Handler) DownloadLatestGedcom(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	latest, err := h.deps.GedcomFileRepo.GetLatest(ctx)
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "no backup found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	body, err := h.deps.Storage.Download(ctx, latest.S3Key)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to download from storage"})
+	}
+	defer body.Close()
+
+	c.Response().Header().Set("Content-Type", "text/plain; charset=utf-8")
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"geneao_backup_v%d.ged\"", latest.Version))
+	return c.Stream(http.StatusOK, "text/plain; charset=utf-8", body)
+}
+
 // backupGedcomToS3 generates a GEDCOM file from the current DB state and uploads it to S3.
 // Called in a goroutine after every tree mutation (create, update, delete, import).
 // Uses context.Background() because the HTTP request context is already done.

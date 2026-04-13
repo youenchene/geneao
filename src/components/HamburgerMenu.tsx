@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { downloadLatestGedcom } from "../lib/api";
 
 interface HamburgerMenuProps {
   onImportGedcom: () => void;
@@ -9,6 +10,7 @@ interface HamburgerMenuProps {
 export default function HamburgerMenu({ onImportGedcom, onLogout }: HamburgerMenuProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on click outside
@@ -23,6 +25,18 @@ export default function HamburgerMenu({ onImportGedcom, onLogout }: HamburgerMen
     }
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      await downloadLatestGedcom();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloading(false);
+      setOpen(false);
+    }
+  }
 
   return (
     <div ref={menuRef} className="relative">
@@ -48,6 +62,13 @@ export default function HamburgerMenu({ onImportGedcom, onLogout }: HamburgerMen
             className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-100 cursor-pointer"
           >
             {t("menu.importGedcom")}
+          </button>
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-100 cursor-pointer disabled:opacity-50"
+          >
+            {downloading ? t("menu.exportingGedcom") : t("menu.exportGedcom")}
           </button>
           <button
             onClick={() => {

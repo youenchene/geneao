@@ -123,6 +123,7 @@ func main() {
 
 	api.GET("/gedcom/export", h.ExportGedcom)
 	api.GET("/gedcom/file", h.GetGedcomFile)
+	api.GET("/gedcom/download-latest", h.DownloadLatestGedcom)
 	api.POST("/gedcom/import", h.ImportGedcom)
 
 	api.GET("/tree", h.GetTree)

@@ -248,3 +248,44 @@ export function importGedcom(file: File): Promise<{ message: string; s3_key: str
     body: formData,
   });
 }
+
+/**
+ * Download the latest GEDCOM backup from S3 via the backend.
+ */
+export async function downloadLatestGedcom(): Promise<void> {
+  const response = await fetch(`${API_URL}/api/gedcom/download-latest`, {
+    credentials: "include",
+  });
+  
+  if (response.status === 401) {
+    setToken(null);
+    window.location.reload();
+    throw new Error("Unauthorized");
+  }
+  
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(err.error || "Failed to download GEDCOM");
+  }
+  
+  // Get filename from Content-Disposition header if available
+  const contentDisposition = response.headers.get("Content-Disposition");
+  let filename = "geneao_backup.ged";
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename="?([^"]+)"?/);
+    if (match && match[1]) {
+      filename = match[1];
+    }
+  }
+  
+  // Create a blob and trigger download
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+}
