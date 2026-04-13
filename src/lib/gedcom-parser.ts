@@ -199,8 +199,11 @@ export function buildFromApiData(tree: {
   const individuals = new Map<string, Individual>();
   const families = new Map<string, Family>();
 
+  const apiIndividuals = tree.individuals ?? [];
+  const apiFamilies = tree.families ?? [];
+
   // First pass: create all individuals (keyed by API UUID)
-  for (const api of tree.individuals) {
+  for (const api of apiIndividuals) {
     individuals.set(api.id, {
       id: api.id,
       apiId: api.id,
@@ -221,7 +224,7 @@ export function buildFromApiData(tree: {
   }
 
   // Second pass: create families and wire up cross-references
-  for (const api of tree.families) {
+  for (const api of apiFamilies) {
     const childIds = (api.child_ids || []).filter((id) => individuals.has(id));
 
     families.set(api.id, {
