@@ -41,6 +41,7 @@ type Deps struct {
 	GedcomFileRepo *repository.GedcomFileRepo
 	Storage        *storage.Store
 	Auth           *auth.Service
+	AppTitle       string // optional override for the frontend app title (GENEAO_TITLE)
 }
 
 // Handler contains all HTTP handlers.
@@ -85,6 +86,14 @@ func (h *Handler) Login(c echo.Context) error {
 	})
 
 	return c.JSON(http.StatusOK, model.LoginResponse{Token: token})
+}
+
+// GetConfig returns public frontend configuration.
+// The title field is empty when GENEAO_TITLE is not set.
+func (h *Handler) GetConfig(c echo.Context) error {
+	return c.JSON(http.StatusOK, map[string]string{
+		"title": h.deps.AppTitle,
+	})
 }
 
 // ListIndividuals returns all individuals.

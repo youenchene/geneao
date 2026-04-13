@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { GedcomData } from "./lib/gedcom-parser";
 import { buildFromApiData } from "./lib/gedcom-parser";
-import { isAuthenticated, logout, getTree } from "./lib/api";
+import { isAuthenticated, logout, getTree, getConfig } from "./lib/api";
 import { EditModeProvider } from "./context/EditModeContext";
 import EditModeToggle from "./components/EditModeToggle";
 import LanguageSwitcher from "./components/LanguageSwitcher";
@@ -19,6 +19,21 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [appTitle, setAppTitle] = useState<string | null>(null);
+
+  // Fetch optional title override from backend config (GENEAO_TITLE).
+  useEffect(() => {
+    getConfig()
+      .then((cfg) => {
+        if (cfg.title) {
+          setAppTitle(cfg.title);
+          document.title = cfg.title;
+        }
+      })
+      .catch(() => {
+        // Config endpoint unavailable — keep defaults.
+      });
+  }, []);
 
   const fetchAndSetData = useCallback(() => {
     return getTree()
@@ -83,7 +98,7 @@ export default function App() {
         <nav className="flex items-center justify-between px-4 py-2 bg-white border-b border-stone-200 shrink-0 z-10">
           <div className="flex items-center gap-2">
             <Logo size={24} />
-            <span className="font-semibold text-stone-800">{t("app.name")}</span>
+            <span className="font-semibold text-stone-800">{appTitle || t("app.name")}</span>
           </div>
           <div className="flex items-center gap-3">
             <LanguageSwitcher />

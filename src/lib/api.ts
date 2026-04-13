@@ -81,6 +81,17 @@ export function logout() {
   setToken(null);
 }
 
+// ---- Config ----
+
+export interface AppConfig {
+  title: string;
+}
+
+/** Fetch public frontend configuration (no auth required). */
+export function getConfig(): Promise<AppConfig> {
+  return apiFetch("/api/config");
+}
+
 // ---- Types ----
 
 export interface ApiIndividual {

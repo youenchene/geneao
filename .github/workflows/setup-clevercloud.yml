@@ -30,11 +30,13 @@ jobs:
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
           GENEAO_PASSWORD: ${{ secrets.GENEAO_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GENEAO_TITLE: ${{ secrets.GENEAO_TITLE }}
         run: |
           clever create geneao_backend --type go --org youenchene --region par || echo "App may already exist"
           clever env set PORT 8080
           clever env set GENEAO_PASSWORD "$GENEAO_PASSWORD"
           clever env set JWT_SECRET "$JWT_SECRET"
+          if [ -n "$GENEAO_TITLE" ]; then clever env set GENEAO_TITLE "$GENEAO_TITLE"; fi
 
       - name: Create PostgreSQL add-on
         env:

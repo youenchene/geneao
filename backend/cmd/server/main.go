@@ -27,6 +27,8 @@ func main() {
 	sharedPassword := envOrDefault("GENEAO_PASSWORD", "changeme")
 	jwtSecret := envOrDefault("JWT_SECRET", "super-secret-change-me")
 
+	appTitle := os.Getenv("GENEAO_TITLE") // optional override for the frontend app title
+
 	s3Endpoint := envOrDefault("S3_ENDPOINT", "http://localhost:9000")
 	s3Bucket := envOrDefault("S3_BUCKET", "geneao")
 	s3Region := envOrDefault("S3_REGION", "us-east-1")
@@ -91,10 +93,12 @@ func main() {
 		GedcomFileRepo: gedcomFileRepo,
 		Storage:        store,
 		Auth:           authService,
+		AppTitle:       appTitle,
 	})
 
 	// Public
 	e.POST("/api/login", h.Login)
+	e.GET("/api/config", h.GetConfig)
 
 	// Protected
 	api := e.Group("/api", auth.Middleware(jwtSecret))

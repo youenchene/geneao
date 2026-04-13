@@ -64,6 +64,7 @@ services:
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
       ALLOWED_ORIGINS: http://localhost:5173
+      GENEAO_TITLE: "Famille Chéné"
     ports:
       - "8080:8080"
     depends_on:
