@@ -82,6 +82,7 @@ export default function TreeNodeView({
               y={startY}
               width={CARD_W}
               height={CARD_H}
+              photoUrl={node.husband.photoUrl}
               onDataChanged={onDataChanged}
             />
           </>
@@ -108,6 +109,7 @@ export default function TreeNodeView({
               y={startY}
               width={CARD_W}
               height={CARD_H}
+              photoUrl={node.wife.photoUrl}
               onDataChanged={onDataChanged}
             />
           </>
@@ -233,6 +235,7 @@ export default function TreeNodeView({
         y={startY}
         width={CARD_W}
         height={CARD_H}
+        photoUrl={node.individual!.photoUrl}
         onDataChanged={onDataChanged}
       />
 

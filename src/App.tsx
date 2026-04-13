@@ -36,6 +36,12 @@ export default function App() {
     fetchAndSetData();
   }, [fetchAndSetData]);
 
+  // Refresh data without showing the loading screen, so that
+  // CustomViewerPage stays mounted and the zoom/pan state is preserved.
+  const refreshData = useCallback(() => {
+    fetchAndSetData();
+  }, [fetchAndSetData]);
+
   // Set loading when authentication state transitions to true (adjust state during render)
   const [prevAuthenticated, setPrevAuthenticated] = useState(authenticated);
   if (authenticated && authenticated !== prevAuthenticated) {
@@ -92,7 +98,7 @@ export default function App() {
           </div>
         </nav>
         <div className="flex-1 overflow-hidden">
-          <CustomViewerPage data={data} onDataChanged={loadData} />
+          <CustomViewerPage data={data} onDataChanged={refreshData} />
         </div>
         {showImport && (
           <ImportGedcomModal

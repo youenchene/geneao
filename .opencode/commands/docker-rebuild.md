@@ -1,5 +1,6 @@
 ---
 description: Run /rebuild then full Docker Compose rebuild cycle (down → build → up)
+model: mistral/mistral-large-latest
 permission:
   bash: allow
 ---

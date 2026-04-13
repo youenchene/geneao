@@ -18,6 +18,7 @@ export interface Individual {
   deathDate: string;
   deathPlace: string;
   note: string;
+  photoUrl?: string; // Presigned S3 URL (populated from /api/tree)
   familiesAsSpouse: string[]; // FAM xref_ids where this person is a spouse
   familyAsChild: string | null; // FAM xref_id where this person is a child
 }
@@ -213,6 +214,7 @@ export function buildFromApiData(tree: {
       deathDate: api.death_date,
       deathPlace: api.death_place,
       note: api.note,
+      photoUrl: api.photo_url || undefined,
       familiesAsSpouse: [],
       familyAsChild: null,
     });

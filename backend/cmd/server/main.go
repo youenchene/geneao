@@ -103,6 +103,7 @@ func main() {
 	api.POST("/individuals", h.CreateIndividual)
 	api.PUT("/individuals/:id", h.UpdateIndividual)
 	api.POST("/individuals/:id/photo", h.UploadPhoto)
+	api.GET("/individuals/:id/photo", h.GetPhoto)
 
 	api.GET("/families", h.ListFamilies)
 	api.GET("/families/:id", h.GetFamily)

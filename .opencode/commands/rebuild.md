@@ -1,5 +1,6 @@
 ---
 description: Build the Go backend and lint, type-check, and build the static frontend
+model: mistral/mistral-large-latest
 permission:
   bash: allow
 ---

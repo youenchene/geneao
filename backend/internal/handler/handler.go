@@ -48,6 +48,11 @@ type Handler struct {
 	deps Deps
 }
 
+// photoProxyURL returns the backend proxy path for an individual's photo.
+func photoProxyURL(individualID string) string {
+	return "/api/individuals/" + individualID + "/photo"
+}
+
 // New creates a new handler.
 func New(deps Deps) *Handler {
 	return &Handler{deps: deps}
@@ -88,11 +93,10 @@ func (h *Handler) ListIndividuals(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-	// Attach presigned photo URLs
+	// Attach photo proxy URLs
 	for i := range individuals {
 		if individuals[i].PhotoKey != "" {
-			url, _ := h.deps.Storage.PresignedURL(c.Request().Context(), individuals[i].PhotoKey, 1*time.Hour)
-			individuals[i].PhotoURL = url
+			individuals[i].PhotoURL = photoProxyURL(individuals[i].ID)
 		}
 	}
 	return c.JSON(http.StatusOK, individuals)
@@ -105,8 +109,7 @@ func (h *Handler) GetIndividual(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "individual not found"})
 	}
 	if indi.PhotoKey != "" {
-		url, _ := h.deps.Storage.PresignedURL(c.Request().Context(), indi.PhotoKey, 1*time.Hour)
-		indi.PhotoURL = url
+		indi.PhotoURL = photoProxyURL(indi.ID)
 	}
 	return c.JSON(http.StatusOK, indi)
 }
@@ -187,19 +190,56 @@ func (h *Handler) UploadPhoto(c echo.Context) error {
 		})
 	}
 
-	// Reconstruct reader: head bytes + remaining file
-	combined := io.MultiReader(strings.NewReader(string(head[:n])), src)
+	// Seek back to start so the S3 upload contains the full file.
+	// src (multipart.File) implements io.ReadSeeker, which the AWS SDK
+	// needs to compute Content-Length for the PUT request.
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "cannot read file"})
+	}
 
 	key := fmt.Sprintf("photos/%s%s", id, ext)
-	if err := h.deps.Storage.Upload(c.Request().Context(), key, combined, detectedType); err != nil {
+	if err := h.deps.Storage.Upload(c.Request().Context(), key, src, detectedType); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "upload failed"})
 	}
 	if err := h.deps.IndividualRepo.UpdatePhoto(c.Request().Context(), id, key); err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "db update failed"})
 	}
 
-	url, _ := h.deps.Storage.PresignedURL(c.Request().Context(), key, 1*time.Hour)
-	return c.JSON(http.StatusOK, map[string]string{"photo_url": url, "photo_key": key})
+	return c.JSON(http.StatusOK, map[string]string{"photo_url": photoProxyURL(id), "photo_key": key})
+}
+
+// GetPhoto streams an individual's photo from S3 to the client.
+func (h *Handler) GetPhoto(c echo.Context) error {
+	id := c.Param("id")
+	if !uuidRegex.MatchString(id) {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id format"})
+	}
+
+	indi, err := h.deps.IndividualRepo.GetByID(c.Request().Context(), id)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "individual not found"})
+	}
+	if indi.PhotoKey == "" {
+		return c.NoContent(http.StatusNotFound)
+	}
+
+	body, err := h.deps.Storage.Download(c.Request().Context(), indi.PhotoKey)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "photo not found in storage"})
+	}
+	defer body.Close()
+
+	// Infer content type from the photo key extension
+	contentType := "image/jpeg"
+	switch {
+	case strings.HasSuffix(indi.PhotoKey, ".png"):
+		contentType = "image/png"
+	case strings.HasSuffix(indi.PhotoKey, ".webp"):
+		contentType = "image/webp"
+	}
+
+	c.Response().Header().Set("Cache-Control", "public, max-age=3600")
+	return c.Stream(http.StatusOK, contentType, body)
 }
 
 // ListFamilies returns all families.
@@ -399,11 +439,10 @@ func (h *Handler) GetTree(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	// Attach photo URLs
+	// Attach photo proxy URLs
 	for i := range individuals {
 		if individuals[i].PhotoKey != "" {
-			url, _ := h.deps.Storage.PresignedURL(ctx, individuals[i].PhotoKey, 1*time.Hour)
-			individuals[i].PhotoURL = url
+			individuals[i].PhotoURL = photoProxyURL(individuals[i].ID)
 		}
 	}
 
