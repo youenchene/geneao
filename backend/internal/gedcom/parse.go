@@ -47,15 +47,16 @@ func parseLines(text string) []gedLine {
 
 // parsedIndi holds parsed individual data with GEDCOM xref.
 type parsedIndi struct {
-	Xref       string
-	GivenName  string
-	Surname    string
-	Sex        string
-	BirthDate  string
-	BirthPlace string
-	DeathDate  string
-	DeathPlace string
-	Note       string
+	Xref        string
+	GivenName   string
+	Surname     string
+	Sex         string
+	BirthDate   string
+	BirthPlace  string
+	DeathDate   string
+	DeathPlace  string
+	LivingPlace string
+	Note        string
 }
 
 // parsedFam holds parsed family data with GEDCOM xrefs.
@@ -109,6 +110,8 @@ func ParseText(text string) ([]parsedIndi, []parsedFam) {
 					currentEvent = "BIRT"
 				case sl.Level == 1 && sl.Tag == "DEAT":
 					currentEvent = "DEAT"
+				case sl.Level == 1 && sl.Tag == "RESI":
+					currentEvent = "RESI"
 				case sl.Level == 2 && sl.Tag == "DATE":
 					if currentEvent == "BIRT" {
 						indi.BirthDate = sl.Value
@@ -120,6 +123,8 @@ func ParseText(text string) ([]parsedIndi, []parsedFam) {
 						indi.BirthPlace = sl.Value
 					} else if currentEvent == "DEAT" {
 						indi.DeathPlace = sl.Value
+					} else if currentEvent == "RESI" {
+						indi.LivingPlace = sl.Value
 					}
 				case sl.Level == 1 && sl.Tag == "NOTE":
 					indi.Note = sl.Value
@@ -197,14 +202,15 @@ func ImportIntoDB(
 	// 1. Create all individuals
 	for _, pi := range parsedIndis {
 		req := model.CreateIndividualRequest{
-			GivenName:  pi.GivenName,
-			Surname:    pi.Surname,
-			Sex:        pi.Sex,
-			BirthDate:  pi.BirthDate,
-			BirthPlace: pi.BirthPlace,
-			DeathDate:  pi.DeathDate,
-			DeathPlace: pi.DeathPlace,
-			Note:       pi.Note,
+			GivenName:   pi.GivenName,
+			Surname:     pi.Surname,
+			Sex:         pi.Sex,
+			BirthDate:   pi.BirthDate,
+			BirthPlace:  pi.BirthPlace,
+			DeathDate:   pi.DeathDate,
+			DeathPlace:  pi.DeathPlace,
+			LivingPlace: pi.LivingPlace,
+			Note:        pi.Note,
 		}
 		indi, err := individualRepo.Create(ctx, req, cs.ID)
 		if err != nil {

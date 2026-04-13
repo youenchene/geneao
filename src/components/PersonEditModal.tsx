@@ -17,7 +17,11 @@ export default function PersonEditModal({ individual, onClose, onSaved }: Props)
   const [givenName, setGivenName] = useState(individual.givenName);
   const [surname, setSurname] = useState(individual.surname);
   const [birthDate, setBirthDate] = useState(individual.birthDate);
+  const [birthPlace, setBirthPlace] = useState(individual.birthPlace);
   const [deathDate, setDeathDate] = useState(individual.deathDate);
+  const [deathPlace, setDeathPlace] = useState(individual.deathPlace);
+  const [livingPlace, setLivingPlace] = useState(individual.livingPlace);
+  const [note, setNote] = useState(individual.note);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -32,9 +36,10 @@ export default function PersonEditModal({ individual, onClose, onSaved }: Props)
         sex: individual.sex,
         birth_date: birthDate,
         death_date: deathDate,
-        birth_place: individual.birthPlace,
-        death_place: individual.deathPlace,
-        note: individual.note,
+        birth_place: birthPlace,
+        death_place: deathPlace,
+        living_place: livingPlace,
+        note: note,
       };
       await updateIndividual(individual.id, payload);
 
@@ -97,6 +102,17 @@ export default function PersonEditModal({ individual, onClose, onSaved }: Props)
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-stone-600 mb-1">{t("editPerson.birthPlace")}</label>
+              <input
+                type="text"
+                value={birthPlace}
+                onChange={(e) => setBirthPlace(e.target.value)}
+                className="w-full px-3 py-2 border border-stone-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-400"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
               <label className="block text-sm font-medium text-stone-600 mb-1">{t("editPerson.deathDate")}</label>
               <input
                 type="text"
@@ -106,6 +122,34 @@ export default function PersonEditModal({ individual, onClose, onSaved }: Props)
                 className="w-full px-3 py-2 border border-stone-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-400"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-600 mb-1">{t("editPerson.deathPlace")}</label>
+              <input
+                type="text"
+                value={deathPlace}
+                onChange={(e) => setDeathPlace(e.target.value)}
+                className="w-full px-3 py-2 border border-stone-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-400"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-600 mb-1">{t("editPerson.livingPlace")}</label>
+            <input
+              type="text"
+              value={livingPlace}
+              onChange={(e) => setLivingPlace(e.target.value)}
+              placeholder={t("editPerson.livingPlacePlaceholder")}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-400"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-600 mb-1">{t("editPerson.note")}</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-600 mb-1">{t("editPerson.photo")}</label>

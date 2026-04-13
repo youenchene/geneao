@@ -17,6 +17,7 @@ export interface Individual {
   birthPlace: string;
   deathDate: string;
   deathPlace: string;
+  livingPlace: string;
   note: string;
   photoUrl?: string; // Presigned S3 URL (populated from /api/tree)
   familiesAsSpouse: string[]; // FAM xref_ids where this person is a spouse
@@ -78,6 +79,7 @@ export function parseGedcom(text: string): GedcomData {
         birthPlace: (d["BIRTH/PLACE"] as string) || "",
         deathDate: (d["DEATH/DATE"] as string) || "",
         deathPlace: (d["DEATH/PLACE"] as string) || "",
+        livingPlace: (d["RESIDENCE/PLACE"] as string) || "",
         note: (d["NOTE"] as string) || "",
         familiesAsSpouse: famsRefs,
         familyAsChild: famcRefs[0] || null,
@@ -181,6 +183,7 @@ export function buildFromApiData(tree: {
     birth_place: string;
     death_date: string;
     death_place: string;
+    living_place: string;
     note: string;
     photo_url: string;
   }>;
@@ -216,6 +219,7 @@ export function buildFromApiData(tree: {
       birthPlace: api.birth_place,
       deathDate: api.death_date,
       deathPlace: api.death_place,
+      livingPlace: api.living_place,
       note: api.note,
       photoUrl: api.photo_url || undefined,
       familiesAsSpouse: [],

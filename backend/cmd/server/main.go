@@ -16,6 +16,7 @@ import (
 
 	"github.com/youenchene/geneao/backend/internal/auth"
 	"github.com/youenchene/geneao/backend/internal/handler"
+	"github.com/youenchene/geneao/backend/internal/migrate"
 	"github.com/youenchene/geneao/backend/internal/repository"
 	"github.com/youenchene/geneao/backend/internal/storage"
 )
@@ -48,6 +49,12 @@ func main() {
 		log.Fatalf("Unable to ping database: %v", err)
 	}
 	log.Println("Connected to database")
+
+	// ---- Run migrations ----
+	if err := migrate.Run(ctx, pool, "db/migrations"); err != nil {
+		log.Fatalf("Migration failed: %v", err)
+	}
+	log.Println("Migrations up to date")
 
 	// ---- S3 Storage ----
 	store, err := storage.New(storage.Config{

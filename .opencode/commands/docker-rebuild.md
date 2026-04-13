@@ -1,6 +1,6 @@
 ---
 description: Run /rebuild then full Docker Compose rebuild cycle (down → build → up)
-model: mistral/mistral-large-latest
+model: google/gemini-3.1-pro-preview
 permission:
   bash: allow
 ---

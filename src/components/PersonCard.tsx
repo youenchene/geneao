@@ -10,6 +10,7 @@ import { formatLifespan } from "../lib/gedcom-parser";
 import { getDefaultAvatar } from "../lib/avatars";
 import { useEditMode } from "../context/EditModeContext";
 import PersonEditModal from "./PersonEditModal";
+import PersonDetailModal from "./PersonDetailModal";
 
 interface Props {
   individual: Individual;
@@ -78,6 +79,7 @@ export default function PersonCard({
   const surname = individual.surname || "";
   const { editMode } = useEditMode();
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Resolve photo: API photo > default avatar
   const imgSrc = photoUrl || getDefaultAvatar(individual.sex, individual.birthDate, individual.deathDate);
@@ -102,7 +104,16 @@ export default function PersonCard({
 
   return (
     <>
-      <g transform={`translate(0, 0)`}>
+      <g
+        transform={`translate(0, 0)`}
+        onClick={(e) => {
+          if (!editMode) {
+            e.stopPropagation();
+            setShowDetailModal(true);
+          }
+        }}
+        style={!editMode ? { cursor: "pointer" } : undefined}
+      >
         <rect
           x={x}
           y={y}
@@ -212,6 +223,16 @@ export default function PersonCard({
             individual={individual}
             onClose={() => setShowEditModal(false)}
             onSaved={() => onDataChanged?.()}
+          />,
+          document.body
+        )}
+
+      {/* Detail modal rendered as a portal (view mode only) */}
+      {showDetailModal &&
+        createPortal(
+          <PersonDetailModal
+            individual={individual}
+            onClose={() => setShowDetailModal(false)}
           />,
           document.body
         )}

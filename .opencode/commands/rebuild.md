@@ -1,6 +1,6 @@
 ---
 description: Build the Go backend and lint, type-check, and build the static frontend
-model: mistral/mistral-large-latest
+model: google/gemini-3.1-pro-preview
 permission:
   bash: allow
 ---

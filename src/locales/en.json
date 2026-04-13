@@ -36,13 +36,18 @@
     "firstName": "First Name",
     "lastName": "Last Name",
     "birthDate": "Birth Date",
+    "birthPlace": "Birth Place",
     "deathDate": "Death Date",
+    "deathPlace": "Death Place",
     "birthDatePlaceholder": "e.g. 1 JAN 1980",
     "deathDatePlaceholder": "e.g. 15 MAR 2020",
+    "livingPlace": "Living Town",
+    "livingPlacePlaceholder": "e.g. Paris",
+    "note": "Note",
     "photo": "Photo",
     "cancel": "Cancel",
     "save": "Save",
-    "saving": "Saving\u2026",
+    "saving": "Saving…",
     "saveFailed": "Save failed"
   },
   "addPerson": {
@@ -69,6 +74,16 @@
     "importing": "Importing…",
     "cancel": "Cancel",
     "failed": "Import failed: {{message}}"
+  },
+  "personDetail": {
+    "title": "Person Details",
+    "birthDate": "Birth Date",
+    "birthPlace": "Birth Place",
+    "deathDate": "Death Date",
+    "deathPlace": "Death Place",
+    "livingPlace": "Living Town",
+    "note": "Note",
+    "close": "Close"
   },
   "language": {
     "label": "Language",

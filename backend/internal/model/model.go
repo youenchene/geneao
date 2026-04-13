@@ -5,20 +5,21 @@ import "time"
 
 // Individual represents a person in the genealogy tree.
 type Individual struct {
-	ID         string    `json:"id"`
-	GedcomID   string    `json:"gedcom_id"`
-	GivenName  string    `json:"given_name"`
-	Surname    string    `json:"surname"`
-	Sex        string    `json:"sex"` // M, F, U
-	BirthDate  string    `json:"birth_date"`
-	BirthPlace string    `json:"birth_place"`
-	DeathDate  string    `json:"death_date"`
-	DeathPlace string    `json:"death_place"`
-	Note       string    `json:"note"`
-	PhotoKey   string    `json:"photo_key,omitempty"`
-	PhotoURL   string    `json:"photo_url,omitempty"` // presigned URL, not stored in DB
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID          string    `json:"id"`
+	GedcomID    string    `json:"gedcom_id"`
+	GivenName   string    `json:"given_name"`
+	Surname     string    `json:"surname"`
+	Sex         string    `json:"sex"` // M, F, U
+	BirthDate   string    `json:"birth_date"`
+	BirthPlace  string    `json:"birth_place"`
+	DeathDate   string    `json:"death_date"`
+	DeathPlace  string    `json:"death_place"`
+	LivingPlace string    `json:"living_place"`
+	Note        string    `json:"note"`
+	PhotoKey    string    `json:"photo_key,omitempty"`
+	PhotoURL    string    `json:"photo_url,omitempty"` // presigned URL, not stored in DB
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // Family represents a family unit (couple + children).
@@ -53,14 +54,15 @@ type GedcomFile struct {
 
 // CreateIndividualRequest is the payload for creating/updating an individual.
 type CreateIndividualRequest struct {
-	GivenName  string `json:"given_name" validate:"required"`
-	Surname    string `json:"surname" validate:"required"`
-	Sex        string `json:"sex" validate:"required,oneof=M F U"`
-	BirthDate  string `json:"birth_date"`
-	BirthPlace string `json:"birth_place"`
-	DeathDate  string `json:"death_date"`
-	DeathPlace string `json:"death_place"`
-	Note       string `json:"note"`
+	GivenName   string `json:"given_name" validate:"required"`
+	Surname     string `json:"surname" validate:"required"`
+	Sex         string `json:"sex" validate:"required,oneof=M F U"`
+	BirthDate   string `json:"birth_date"`
+	BirthPlace  string `json:"birth_place"`
+	DeathDate   string `json:"death_date"`
+	DeathPlace  string `json:"death_place"`
+	LivingPlace string `json:"living_place"`
+	Note        string `json:"note"`
 }
 
 // CreateFamilyRequest is the payload for creating/updating a family.

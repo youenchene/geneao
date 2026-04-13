@@ -70,6 +70,10 @@ func Generate(individuals []model.Individual, families []model.Family) string {
 				b.WriteString(fmt.Sprintf("2 PLAC %s\n", indi.DeathPlace))
 			}
 		}
+		if indi.LivingPlace != "" {
+			b.WriteString("1 RESI\n")
+			b.WriteString(fmt.Sprintf("2 PLAC %s\n", indi.LivingPlace))
+		}
 		if indi.Note != "" {
 			b.WriteString(fmt.Sprintf("1 NOTE %s\n", indi.Note))
 		}

@@ -33,17 +33,22 @@
   },
   "editPerson": {
     "title": "Modifier la personne",
-    "firstName": "Pr\u00e9nom",
+    "firstName": "Prénom",
     "lastName": "Nom de famille",
     "birthDate": "Date de naissance",
-    "deathDate": "Date de d\u00e9c\u00e8s",
+    "birthPlace": "Lieu de naissance",
+    "deathDate": "Date de décès",
+    "deathPlace": "Lieu de décès",
     "birthDatePlaceholder": "ex. 1 JAN 1980",
     "deathDatePlaceholder": "ex. 15 MAR 2020",
+    "livingPlace": "Ville de résidence",
+    "livingPlacePlaceholder": "ex. Paris",
+    "note": "Note",
     "photo": "Photo",
     "cancel": "Annuler",
     "save": "Enregistrer",
-    "saving": "Enregistrement\u2026",
-    "saveFailed": "\u00c9chec de l\u2019enregistrement"
+    "saving": "Enregistrement…",
+    "saveFailed": "Échec de l’enregistrement"
   },
   "addPerson": {
     "addSpouse": "Ajouter un conjoint",
@@ -69,6 +74,16 @@
     "importing": "Importation…",
     "cancel": "Annuler",
     "failed": "Échec de l'importation : {{message}}"
+  },
+  "personDetail": {
+    "title": "Détails de la personne",
+    "birthDate": "Date de naissance",
+    "birthPlace": "Lieu de naissance",
+    "deathDate": "Date de décès",
+    "deathPlace": "Lieu de décès",
+    "livingPlace": "Ville de résidence",
+    "note": "Note",
+    "close": "Fermer"
   },
   "language": {
     "label": "Langue",

@@ -104,6 +104,7 @@ export interface ApiIndividual {
   birth_place: string;
   death_date: string;
   death_place: string;
+  living_place: string;
   note: string;
   photo_key: string;
   photo_url: string;
@@ -138,6 +139,7 @@ export interface CreateIndividualPayload {
   birth_place?: string;
   death_date?: string;
   death_place?: string;
+  living_place?: string;
   note?: string;
 }
 
