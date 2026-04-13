@@ -4,6 +4,7 @@
  * add alliance/child buttons.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { GedcomData } from "../lib/gedcom-parser";
 import type { PositionedNode } from "../lib/tree-layout";
 import { useEditMode } from "../context/EditModeContext";
@@ -43,6 +44,7 @@ export default function TreeNodeView({
   highlightedPersonId,
   onDataChanged,
 }: Props) {
+  const { t } = useTranslation();
   const [hovered, setHovered] = useState(false);
   const { editMode } = useEditMode();
   const { node, x, y } = posNode;
@@ -184,6 +186,7 @@ export default function TreeNodeView({
             }}
             style={{ cursor: "pointer" }}
           >
+            <title>{isCollapsed ? t("tooltip.expand", { count: childCount }) : t("tooltip.collapse")}</title>
             <circle
               cx={x}
               cy={startY + CARD_H + 12}

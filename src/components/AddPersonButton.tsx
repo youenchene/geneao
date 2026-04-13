@@ -145,6 +145,7 @@ export default function AddPersonButton({
         }}
         style={{ cursor: "pointer" }}
       >
+        <title>{type === "alliance" ? t("tooltip.addSpouse") : t("tooltip.addChild")}</title>
         <circle
           cx={x}
           cy={y}

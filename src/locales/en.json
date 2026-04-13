@@ -87,6 +87,18 @@
     "note": "Note",
     "close": "Close"
   },
+  "tooltip": {
+    "menu": "Open menu",
+    "viewDetails": "Click to view details",
+    "editPerson": "Edit this person",
+    "addSpouse": "Add a spouse",
+    "addChild": "Add a child",
+    "collapse": "Collapse descendants",
+    "expand": "Show descendants ({{count}})",
+    "importGedcom": "Import a tree from a GEDCOM file",
+    "exportGedcom": "Download the latest GEDCOM backup",
+    "logout": "Log out of the application"
+  },
   "language": {
     "label": "Language",
     "fr": "Français",

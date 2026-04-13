@@ -5,6 +5,7 @@
  */
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import type { Individual } from "../lib/gedcom-parser";
 import { formatLifespan } from "../lib/gedcom-parser";
 import { getDefaultAvatar } from "../lib/avatars";
@@ -73,6 +74,7 @@ export default function PersonCard({
   photoUrl,
   onDataChanged,
 }: Props) {
+  const { t } = useTranslation();
   const colors = COLORS[individual.sex];
   const lifespan = formatLifespan(individual);
   const givenName = individual.givenName || individual.displayName || "?";
@@ -114,6 +116,7 @@ export default function PersonCard({
         }}
         style={!editMode ? { cursor: "pointer" } : undefined}
       >
+        {!editMode && <title>{t("tooltip.viewDetails")}</title>}
         <rect
           x={x}
           y={y}
@@ -191,6 +194,7 @@ export default function PersonCard({
             }}
             style={{ cursor: "pointer" }}
           >
+            <title>{t("tooltip.editPerson")}</title>
             <rect
               x={x + width - 18}
               y={y + 2}
