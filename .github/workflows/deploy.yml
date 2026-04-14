@@ -21,9 +21,10 @@ jobs:
         env:
           CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+          CLEVER_ORGANIZATION: ${{ secrets.CLEVER_ORGANIZATION }}
         run: |
           clever login --token "$CLEVER_TOKEN" --secret "$CLEVER_SECRET"
-          clever link geneao_backend --org youenchene
+          clever link geneao_backend --org "$CLEVER_ORGANIZATION"
           clever deploy --force
 
   deploy-frontend:
@@ -50,7 +51,8 @@ jobs:
         env:
           CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+          CLEVER_ORGANIZATION: ${{ secrets.CLEVER_ORGANIZATION }}
         run: |
           clever login --token "$CLEVER_TOKEN" --secret "$CLEVER_SECRET"
-          clever link geneao_frontend --org youenchene
+          clever link geneao_frontend --org "$CLEVER_ORGANIZATION"
           clever deploy --force

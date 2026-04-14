@@ -28,38 +28,77 @@ jobs:
         env:
           CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+          CLEVER_ORGANIZATION: ${{ secrets.CLEVER_ORGANIZATION }}
           GENEAO_PASSWORD: ${{ secrets.GENEAO_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           GENEAO_TITLE: ${{ secrets.GENEAO_TITLE }}
+          CLEVER_FRONT_URL: ${{ secrets.CLEVER_FRONT_URL }}
         run: |
-          clever create geneao_backend --type go --org youenchene --region par || echo "App may already exist"
+          clever create geneao_backend --type go --org "$CLEVER_ORGANIZATION" --region par || echo "App may already exist"
+          clever link geneao_backend --org "$CLEVER_ORGANIZATION"
           clever env set PORT 8080
           clever env set GENEAO_PASSWORD "$GENEAO_PASSWORD"
           clever env set JWT_SECRET "$JWT_SECRET"
           if [ -n "$GENEAO_TITLE" ]; then clever env set GENEAO_TITLE "$GENEAO_TITLE"; fi
+          if [ -n "$CLEVER_FRONT_URL" ]; then clever env set ALLOWED_ORIGINS "$CLEVER_FRONT_URL"; fi
 
       - name: Create PostgreSQL add-on
         env:
           CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+          CLEVER_ORGANIZATION: ${{ secrets.CLEVER_ORGANIZATION }}
         run: |
-          clever addon create postgresql-addon geneao_db --org youenchene --plan s_sml || echo "Addon may already exist"
+          clever addon create postgresql-addon geneao_db --org "$CLEVER_ORGANIZATION" --plan s_sml || echo "Addon may already exist"
           clever service link-addon geneao_db
+
+      - name: Map PostgreSQL env vars
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+        run: |
+          PG_URI=$(clever env | grep "^POSTGRESQL_ADDON_URI=" | cut -d= -f2-)
+          if [ -n "$PG_URI" ]; then
+            clever env set DATABASE_URL "$PG_URI"
+            echo "DATABASE_URL set from POSTGRESQL_ADDON_URI"
+          else
+            echo "WARNING: POSTGRESQL_ADDON_URI not found — set DATABASE_URL manually"
+          fi
 
       - name: Create Cellar (S3) add-on
         env:
           CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+          CLEVER_ORGANIZATION: ${{ secrets.CLEVER_ORGANIZATION }}
         run: |
-          clever addon create cellar-addon geneao_storage --org youenchene --plan s || echo "Addon may already exist"
+          clever addon create cellar-addon geneao_storage --org "$CLEVER_ORGANIZATION" --plan s || echo "Addon may already exist"
           clever service link-addon geneao_storage
+
+      - name: Map Cellar S3 env vars
+        env:
+          CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
+          CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+        run: |
+          CELLAR_HOST=$(clever env | grep "^CELLAR_ADDON_HOST=" | cut -d= -f2-)
+          CELLAR_KEY=$(clever env | grep "^CELLAR_ADDON_KEY_ID=" | cut -d= -f2-)
+          CELLAR_SECRET=$(clever env | grep "^CELLAR_ADDON_KEY_SECRET=" | cut -d= -f2-)
+          if [ -n "$CELLAR_HOST" ] && [ -n "$CELLAR_KEY" ] && [ -n "$CELLAR_SECRET" ]; then
+            clever env set S3_ENDPOINT "https://$CELLAR_HOST"
+            clever env set S3_ACCESS_KEY "$CELLAR_KEY"
+            clever env set S3_SECRET_KEY "$CELLAR_SECRET"
+            clever env set S3_BUCKET "geneao"
+            clever env set S3_REGION "us-east-1"
+            echo "S3 env vars set from Cellar addon"
+          else
+            echo "WARNING: Cellar env vars not found — set S3_* env vars manually"
+          fi
 
       - name: Create static frontend application
         env:
           CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
+          CLEVER_ORGANIZATION: ${{ secrets.CLEVER_ORGANIZATION }}
         run: |
-          clever create geneao_frontend --type static-apache --org youenchene --region par || echo "App may already exist"
+          clever create geneao_frontend --type static-apache --org "$CLEVER_ORGANIZATION" --region par || echo "App may already exist"
 
       - name: Summary
         run: |
@@ -69,7 +108,10 @@ jobs:
           echo "  - geneao_db (PostgreSQL)"
           echo "  - geneao_storage (Cellar/S3)"
           echo ""
-          echo "Next steps:"
-          echo "  1. Set S3 env vars on backend from Cellar addon"
-          echo "  2. Run DB migrations"
-          echo "  3. Deploy via 'Deploy to Clever Cloud' workflow"
+          echo "Automated configuration:"
+          echo "  - DATABASE_URL mapped from PostgreSQL addon"
+          echo "  - S3_* env vars mapped from Cellar addon"
+          echo "  - ALLOWED_ORIGINS set from CLEVER_FRONT_URL"
+          echo ""
+          echo "Next step:"
+          echo "  Deploy via 'Deploy to Clever Cloud' workflow"
