@@ -34,7 +34,13 @@ jobs:
           GENEAO_TITLE: ${{ secrets.GENEAO_TITLE }}
           CLEVER_FRONT_URL: ${{ secrets.CLEVER_FRONT_URL }}
         run: |
-          clever create geneao_backend --type go --org "$CLEVER_ORGANIZATION" --region par || echo "App may already exist"
+          # Check if backend app already exists
+          if clever applications list --org "$CLEVER_ORGANIZATION" 2>/dev/null | grep -q "geneao_backend"; then
+            echo "geneao_backend already exists — skipping creation"
+          else
+            echo "Creating geneao_backend..."
+            clever create geneao_backend --type go --org "$CLEVER_ORGANIZATION" --region par
+          fi
           clever link geneao_backend --org "$CLEVER_ORGANIZATION"
           clever env set PORT 8080
           clever env set GENEAO_PASSWORD "$GENEAO_PASSWORD"
@@ -48,7 +54,13 @@ jobs:
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
           CLEVER_ORGANIZATION: ${{ secrets.CLEVER_ORGANIZATION }}
         run: |
-          clever addon create postgresql-addon geneao_db --org "$CLEVER_ORGANIZATION" --plan s_sml || echo "Addon may already exist"
+          # Check if PostgreSQL addon already exists
+          if clever addon list --org "$CLEVER_ORGANIZATION" 2>/dev/null | grep -q "geneao_db"; then
+            echo "geneao_db already exists — skipping creation"
+          else
+            echo "Creating geneao_db..."
+            clever addon create postgresql-addon geneao_db --org "$CLEVER_ORGANIZATION" --plan dev --link geneao_backend
+          fi
           clever service link-addon geneao_db
 
       - name: Map PostgreSQL env vars
@@ -70,7 +82,13 @@ jobs:
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
           CLEVER_ORGANIZATION: ${{ secrets.CLEVER_ORGANIZATION }}
         run: |
-          clever addon create cellar-addon geneao_storage --org "$CLEVER_ORGANIZATION" --plan s || echo "Addon may already exist"
+          # Check if Cellar addon already exists
+          if clever addon list --org "$CLEVER_ORGANIZATION" 2>/dev/null | grep -q "geneao_storage"; then
+            echo "geneao_storage already exists — skipping creation"
+          else
+            echo "Creating geneao_storage..."
+            clever addon create cellar-addon geneao_storage --org "$CLEVER_ORGANIZATION" --plan s --link geneao_backend
+          fi
           clever service link-addon geneao_storage
 
       - name: Map Cellar S3 env vars
@@ -98,14 +116,20 @@ jobs:
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
           CLEVER_ORGANIZATION: ${{ secrets.CLEVER_ORGANIZATION }}
         run: |
-          clever create geneao_frontend --type static-apache --org "$CLEVER_ORGANIZATION" --region par || echo "App may already exist"
+          # Check if frontend app already exists
+          if clever applications list --org "$CLEVER_ORGANIZATION" 2>/dev/null | grep -q "geneao_frontend"; then
+            echo "geneao_frontend already exists — skipping creation"
+          else
+            echo "Creating geneao_frontend..."
+            clever create geneao_frontend --type static-apache --org "$CLEVER_ORGANIZATION" --region par
+          fi
 
       - name: Summary
         run: |
           echo "Clever Cloud infrastructure created:"
           echo "  - geneao_backend (Go)"
           echo "  - geneao_frontend (Static)"
-          echo "  - geneao_db (PostgreSQL)"
+          echo "  - geneao_db (PostgreSQL dev)"
           echo "  - geneao_storage (Cellar/S3)"
           echo ""
           echo "Automated configuration:"
