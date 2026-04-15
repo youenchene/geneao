@@ -69,6 +69,11 @@ func main() {
 	}
 	log.Println("S3 storage initialized")
 
+	if err := store.EnsureBucket(ctx); err != nil {
+		log.Fatalf("Unable to ensure S3 bucket: %v", err)
+	}
+	log.Println("S3 bucket ready")
+
 	// ---- Repositories ----
 	individualRepo := repository.NewIndividualRepo(pool)
 	familyRepo := repository.NewFamilyRepo(pool)
