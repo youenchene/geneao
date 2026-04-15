@@ -194,26 +194,30 @@ export default function TreeNodeView({
           />
         )}
 
-        {/* Collapse/expand toggle */}
-        {childCount !== undefined && childCount > 0 && (
-          <g
-            onClick={(e) => { e.stopPropagation(); onToggleCollapse?.(node.id); }}
-            style={{ cursor: "pointer" }}
-          >
-            <title>{isCollapsed ? t("tooltip.expand", { count: childCount }) : t("tooltip.collapse")}</title>
-            <circle
-              cx={x} cy={startY + CARD_H + 12} r={9}
-              fill={hovered ? "#e7e5e4" : "white"} stroke="#a8a29e" strokeWidth={1}
-            />
-            <text
-              x={x} y={startY + CARD_H + 12}
-              textAnchor="middle" dominantBaseline="central"
-              fontSize={10} fill="#57534e" fontFamily="system-ui, sans-serif" fontWeight={700}
+        {/* Collapse/expand toggle — above for ancestors, below for descendants */}
+        {childCount !== undefined && childCount > 0 && (() => {
+          const isAncestor = node.id.startsWith("anc-");
+          const toggleY = isAncestor ? startY - 12 : startY + CARD_H + 12;
+          return (
+            <g
+              onClick={(e) => { e.stopPropagation(); onToggleCollapse?.(node.id); }}
+              style={{ cursor: "pointer" }}
             >
-              {isCollapsed ? `+${childCount}` : "−"}
-            </text>
-          </g>
-        )}
+              <title>{isCollapsed ? t("tooltip.expand", { count: childCount }) : t("tooltip.collapse")}</title>
+              <circle
+                cx={x} cy={toggleY} r={9}
+                fill={hovered ? "#e7e5e4" : "white"} stroke="#a8a29e" strokeWidth={1}
+              />
+              <text
+                x={x} y={toggleY}
+                textAnchor="middle" dominantBaseline="central"
+                fontSize={10} fill="#57534e" fontFamily="system-ui, sans-serif" fontWeight={700}
+              >
+                {isCollapsed ? `+${childCount}` : "−"}
+              </text>
+            </g>
+          );
+        })()}
       </g>
     );
   }

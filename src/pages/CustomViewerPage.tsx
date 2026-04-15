@@ -21,7 +21,7 @@ interface Props {
   onDataChanged?: () => void;
 }
 
-/** Filter layout to hide collapsed subtrees. */
+/** Filter layout to hide collapsed subtrees (downward) or ancestor branches (upward). */
 function filterLayout(
   layout: TreeLayout,
   collapsedIds: Set<string>
@@ -30,21 +30,41 @@ function filterLayout(
 
   const hiddenPositions = new Set<string>();
 
-  function markHidden(parentX: number, parentY: number) {
+  /** Hide descendants (walk downward: parent → child). */
+  function markHiddenDown(px: number, py: number) {
     for (const edge of layout.edges) {
-      if (edge.parentX === parentX && edge.parentY === parentY) {
+      if (edge.parentX === px && edge.parentY === py && edge.childY > py) {
         const key = `${edge.childX},${edge.childY}`;
         if (!hiddenPositions.has(key)) {
           hiddenPositions.add(key);
-          markHidden(edge.childX, edge.childY);
+          markHiddenDown(edge.childX, edge.childY);
+        }
+      }
+    }
+  }
+
+  /** Hide ancestors (walk upward: child → parent). */
+  function markHiddenUp(cx: number, cy: number) {
+    for (const edge of layout.edges) {
+      if (edge.childX === cx && edge.childY === cy && edge.parentY < cy) {
+        const key = `${edge.parentX},${edge.parentY}`;
+        if (!hiddenPositions.has(key)) {
+          hiddenPositions.add(key);
+          markHiddenUp(edge.parentX, edge.parentY);
         }
       }
     }
   }
 
   for (const pn of layout.nodes) {
-    if (collapsedIds.has(pn.node.id)) {
-      markHidden(pn.x, pn.y);
+    if (!collapsedIds.has(pn.node.id)) continue;
+
+    // Ancestor nodes (id starts with "anc-"): collapse hides parents (upward)
+    if (pn.node.id.startsWith("anc-")) {
+      markHiddenUp(pn.x, pn.y);
+    } else {
+      // Descendant nodes: collapse hides children (downward)
+      markHiddenDown(pn.x, pn.y);
     }
   }
 
@@ -60,14 +80,26 @@ function filterLayout(
   return { nodes, edges };
 }
 
-/** Count direct children of a node. */
-function countDirectChildren(
+/**
+ * Count collapsible connections for a node.
+ * For ancestor nodes: count parent edges (upward).
+ * For descendant nodes: count child edges (downward).
+ */
+function countCollapsible(
   layout: TreeLayout,
+  nodeId: string,
   nodeX: number,
   nodeY: number
 ): number {
+  if (nodeId.startsWith("anc-")) {
+    // Count edges going up from this node
+    return layout.edges.filter(
+      (e) => e.childX === nodeX && e.childY === nodeY && e.parentY < nodeY
+    ).length;
+  }
+  // Count edges going down from this node
   return layout.edges.filter(
-    (e) => e.parentX === nodeX && e.parentY === nodeY
+    (e) => e.parentX === nodeX && e.parentY === nodeY && e.childY > nodeY
   ).length;
 }
 
@@ -214,7 +246,7 @@ export default function CustomViewerPage({ data, onDataChanged }: Props) {
                   data={data}
                   onToggleCollapse={handleToggleCollapse}
                   isCollapsed={collapsedIds.has(posNode.node.id)}
-                  childCount={countDirectChildren(layout, posNode.x, posNode.y)}
+                  childCount={countCollapsible(layout, posNode.node.id, posNode.x, posNode.y)}
                   highlightedPersonId={highlightedPersonId}
                   onDataChanged={onDataChanged}
                 />
