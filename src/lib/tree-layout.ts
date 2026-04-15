@@ -121,13 +121,12 @@ function toRelativesNodes(data: GedcomData): RTNode[] {
 
 /**
  * Find the best root individual for the tree.
- * Uses the existing findRootFamily, then picks the husband (or wife)
- * of that family as the root person.
+ * Uses the existing findRootFamily, then picks the first child of that
+ * family (so both parent branches fan out above). Falls back to a parent.
  */
 function findRootPerson(data: GedcomData): string | null {
   const rootFamId = findRootFamily(data);
   if (!rootFamId) {
-    // Fallback: first individual
     const first = data.individuals.keys().next();
     return first.done ? null : first.value;
   }
@@ -135,15 +134,23 @@ function findRootPerson(data: GedcomData): string | null {
   const rootFam = data.families.get(rootFamId);
   if (!rootFam) return null;
 
-  // Prefer husband, then wife, then first child
+  // Prefer a child who themselves formed families (most connected)
+  for (const childId of rootFam.childIds) {
+    const child = data.individuals.get(childId);
+    if (child && child.familiesAsSpouse.length > 0) {
+      return childId;
+    }
+  }
+
+  // Fallback: first child, then husband, then wife
+  if (rootFam.childIds.length > 0 && data.individuals.has(rootFam.childIds[0])) {
+    return rootFam.childIds[0];
+  }
   if (rootFam.husbandId && data.individuals.has(rootFam.husbandId)) {
     return rootFam.husbandId;
   }
   if (rootFam.wifeId && data.individuals.has(rootFam.wifeId)) {
     return rootFam.wifeId;
-  }
-  if (rootFam.childIds.length > 0) {
-    return rootFam.childIds[0];
   }
   return null;
 }
@@ -163,12 +170,12 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
 
   const rtNodes = toRelativesNodes(data);
 
-  // relatives-tree computes layout in unit coordinates.
-  // Each node occupies 1×1 unit; we scale to our card dimensions.
+  // relatives-tree computes layout in half-node units.
+  // Multiply by (NODE_SIZE / 2) to get pixel positions (per official example).
   const result = calcTree(rtNodes, { rootId });
 
-  const scaleX = CARD_W + 16; // card width + horizontal gap
-  const scaleY = CARD_H + 70; // card height + vertical gap for edges
+  const halfW = CARD_W / 2;
+  const halfH = CARD_H / 2;
   const padding = 40;
 
   const nodes: PositionedNode[] = [];
@@ -189,8 +196,8 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
 
     nodes.push({
       node: treeNode,
-      x: extNode.left * scaleX + padding,
-      y: extNode.top * scaleY + padding,
+      x: extNode.left * halfW + padding,
+      y: extNode.top * halfH + padding,
       hasSubTree: extNode.hasSubTree,
     });
   }
@@ -198,16 +205,16 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
   // Map connectors to our PositionedEdge format
   for (const conn of result.connectors) {
     edges.push({
-      x1: conn[0] * scaleX + padding,
-      y1: conn[1] * scaleY + padding,
-      x2: conn[2] * scaleX + padding,
-      y2: conn[3] * scaleY + padding,
+      x1: conn[0] * halfW + padding,
+      y1: conn[1] * halfH + padding,
+      x2: conn[2] * halfW + padding,
+      y2: conn[3] * halfH + padding,
     });
   }
 
   // Compute canvas size
-  const width = result.canvas.width * scaleX + padding * 2;
-  const height = result.canvas.height * scaleY + padding * 2;
+  const width = result.canvas.width * halfW + padding * 2;
+  const height = result.canvas.height * halfH + padding * 2;
 
   return { nodes, edges, width, height };
 }
