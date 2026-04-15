@@ -19,6 +19,7 @@ interface Props {
   linkedIndividualSex?: "M" | "F" | "U";
   familyApiId?: string;
   existingChildApiIds?: string[];
+  tooltipKey?: string;
   onCreated: () => void;
 }
 
@@ -30,6 +31,7 @@ export default function AddPersonButton({
   linkedIndividualSex,
   familyApiId,
   existingChildApiIds,
+  tooltipKey,
   onCreated,
 }: Props) {
   const { t } = useTranslation();
@@ -145,7 +147,7 @@ export default function AddPersonButton({
         }}
         style={{ cursor: "pointer" }}
       >
-        <title>{type === "alliance" ? t("tooltip.addSpouse") : t("tooltip.addChild")}</title>
+        <title>{tooltipKey ? t(tooltipKey) : type === "alliance" ? t("tooltip.addSpouse") : t("tooltip.addChild")}</title>
         <circle
           cx={x}
           cy={y}
@@ -181,7 +183,7 @@ export default function AddPersonButton({
             >
               <h2 className="text-lg font-bold text-stone-800 mb-4">
                 {type === "alliance"
-                  ? t("addPerson.addSpouse")
+                  ? tooltipKey ? t("addPerson.addAnotherSpouse") : t("addPerson.addSpouse")
                   : t("addPerson.addChild")}
               </h2>
 

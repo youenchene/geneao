@@ -202,13 +202,14 @@ export default function CustomViewerPage({ data, onDataChanged }: Props) {
             {/* Edges */}
             <g>
               {edges.map((edge, i) => {
+                const anchorX = edge.parentAnchorX;
                 const midY =
                   (edge.parentY + NODE_HEIGHT + edge.childY) / 2;
                 return (
                   <path
                     key={i}
-                    d={`M ${edge.parentX} ${edge.parentY + NODE_HEIGHT}
-                        L ${edge.parentX} ${midY}
+                    d={`M ${anchorX} ${edge.parentY + NODE_HEIGHT}
+                        L ${anchorX} ${midY}
                         L ${edge.childX} ${midY}
                         L ${edge.childX} ${edge.childY}`}
                     fill="none"

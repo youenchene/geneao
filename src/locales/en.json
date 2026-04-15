@@ -52,6 +52,7 @@
   },
   "addPerson": {
     "addSpouse": "Add Spouse",
+    "addAnotherSpouse": "Add another spouse",
     "addChild": "Add Child",
     "firstName": "First name",
     "lastName": "Last name",
@@ -92,6 +93,7 @@
     "viewDetails": "Click to view details",
     "editPerson": "Edit this person",
     "addSpouse": "Add a spouse",
+    "addAnotherSpouse": "Add another spouse for this person",
     "addChild": "Add a child",
     "collapse": "Collapse descendants",
     "expand": "Show descendants ({{count}})",
