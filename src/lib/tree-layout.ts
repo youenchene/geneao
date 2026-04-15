@@ -477,24 +477,17 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
       ? data.individuals.get(focalFamily.wifeId)
       : undefined;
 
+    let hFlipped: LayoutResult | null = null;
+    let wFlipped: LayoutResult | null = null;
+    let hAnchorX = focalX - ANC_OFFSET;
+    let wAnchorX = focalX + ANC_OFFSET;
+
     // Husband's ancestor branch (left side)
     if (husband?.familyAsChild) {
       const hAncRoot = buildAncestorTree(data, husband.familyAsChild, new Set([focalFamilyId]));
       if (hAncRoot) {
         const hLayout = layoutTree(hAncRoot, 1.8, 2.2);
-        const anchorX = focalX - ANC_OFFSET;
-        const flipped = flipAncestorLayout(hLayout, hAncRoot.id, anchorX, -NODE_HEIGHT_STEP);
-
-        allNodes.push(...flipped.nodes);
-        allEdges.push(...flipped.edges);
-
-        // Edge from husband's parent couple down to focal couple
-        allEdges.push({
-          parentX: anchorX,
-          parentY: -NODE_HEIGHT_STEP,
-          childX: focalX,
-          childY: 0,
-        });
+        hFlipped = flipAncestorLayout(hLayout, hAncRoot.id, hAnchorX, -NODE_HEIGHT_STEP);
       }
     }
 
@@ -503,20 +496,54 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
       const wAncRoot = buildAncestorTree(data, wife.familyAsChild, new Set([focalFamilyId]));
       if (wAncRoot) {
         const wLayout = layoutTree(wAncRoot, 1.8, 2.2);
-        const anchorX = focalX + ANC_OFFSET;
-        const flipped = flipAncestorLayout(wLayout, wAncRoot.id, anchorX, -NODE_HEIGHT_STEP);
-
-        allNodes.push(...flipped.nodes);
-        allEdges.push(...flipped.edges);
-
-        // Edge from wife's parent couple down to focal couple
-        allEdges.push({
-          parentX: anchorX,
-          parentY: -NODE_HEIGHT_STEP,
-          childX: focalX,
-          childY: 0,
-        });
+        wFlipped = flipAncestorLayout(wLayout, wAncRoot.id, wAnchorX, -NODE_HEIGHT_STEP);
       }
+    }
+
+    // Resolve overlap: push branches apart if they collide
+    if (hFlipped && wFlipped) {
+      const hMaxX = Math.max(...hFlipped.nodes.map((n) => n.x + NODE_WIDTH / 2));
+      const wMinX = Math.min(...wFlipped.nodes.map((n) => n.x - NODE_WIDTH / 2));
+      const gap = 40; // minimum gap between the two branches
+
+      if (hMaxX + gap > wMinX) {
+        const overlap = hMaxX + gap - wMinX;
+        const shift = overlap / 2;
+
+        // Shift husband's branch left
+        for (const n of hFlipped.nodes) n.x -= shift;
+        for (const e of hFlipped.edges) { e.parentX -= shift; e.childX -= shift; }
+        hAnchorX -= shift;
+
+        // Shift wife's branch right
+        for (const n of wFlipped.nodes) n.x += shift;
+        for (const e of wFlipped.edges) { e.parentX += shift; e.childX += shift; }
+        wAnchorX += shift;
+      }
+    }
+
+    // Add husband's branch to layout
+    if (hFlipped) {
+      allNodes.push(...hFlipped.nodes);
+      allEdges.push(...hFlipped.edges);
+      allEdges.push({
+        parentX: hAnchorX,
+        parentY: -NODE_HEIGHT_STEP,
+        childX: focalX,
+        childY: 0,
+      });
+    }
+
+    // Add wife's branch to layout
+    if (wFlipped) {
+      allNodes.push(...wFlipped.nodes);
+      allEdges.push(...wFlipped.edges);
+      allEdges.push({
+        parentX: wAnchorX,
+        parentY: -NODE_HEIGHT_STEP,
+        childX: focalX,
+        childY: 0,
+      });
     }
   }
 
