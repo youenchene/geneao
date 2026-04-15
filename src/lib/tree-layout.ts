@@ -307,6 +307,9 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
     });
   });
 
+  // ── Add spouse ancestor branches (families not in the main d3 tree) ──
+  addSpouseAncestors(data, nodes, edges, NODE_HEIGHT);
+
   // Compute bounds — account for wider multi-couple nodes
   let minX = Infinity,
     maxX = -Infinity,
@@ -343,4 +346,133 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
     width: maxX - minX + padding * 2,
     height: maxY - minY + padding * 2,
   };
+}
+
+/**
+ * Scan all positioned nodes for spouses whose parent families are not
+ * yet in the tree. For each, create ancestor couple nodes above the
+ * spouse and connect them with edges. Recurse upward.
+ */
+function addSpouseAncestors(
+  data: GedcomData,
+  nodes: PositionedNode[],
+  edges: PositionedEdge[],
+  nodeHeight: number
+): void {
+  // Collect all family IDs already represented in the tree
+  const treeFamilyIds = new Set<string>();
+  for (const pn of nodes) {
+    const n = pn.node;
+    if (n.type === "couple" && n.family) treeFamilyIds.add(n.family.id);
+    if (n.type === "multi-couple" && n.unions) {
+      for (const u of n.unions) treeFamilyIds.add(u.family.id);
+    }
+  }
+
+  // Collect individuals already processed to avoid duplicates
+  const processedIndividuals = new Set<string>();
+
+  // We iterate over a snapshot because we'll push new nodes during the loop
+  const snapshot = [...nodes];
+
+  for (const pn of snapshot) {
+    const spouses = collectSpouses(pn.node);
+    for (const spouse of spouses) {
+      addAncestorChain(data, spouse, pn, nodes, edges, treeFamilyIds, processedIndividuals, nodeHeight);
+    }
+  }
+}
+
+/** Extract all spouse individuals from a tree node. */
+function collectSpouses(node: TreeNode): Individual[] {
+  const result: Individual[] = [];
+  if (node.type === "couple") {
+    if (node.husband) result.push(node.husband);
+    if (node.wife) result.push(node.wife);
+  } else if (node.type === "multi-couple") {
+    if (node.commonPerson) result.push(node.commonPerson);
+    if (node.unions) {
+      for (const u of node.unions) {
+        if (u.spouse) result.push(u.spouse);
+      }
+    }
+  } else if (node.type === "individual" && node.individual) {
+    result.push(node.individual);
+  }
+  return result;
+}
+
+/**
+ * For a single individual, walk up through familyAsChild and add
+ * ancestor couple nodes above the child node they belong to.
+ */
+function addAncestorChain(
+  data: GedcomData,
+  individual: Individual,
+  childPosNode: PositionedNode,
+  nodes: PositionedNode[],
+  edges: PositionedEdge[],
+  treeFamilyIds: Set<string>,
+  processedIndividuals: Set<string>,
+  nodeHeight: number
+): void {
+  if (processedIndividuals.has(individual.id)) return;
+  processedIndividuals.add(individual.id);
+
+  const parentFamId = individual.familyAsChild;
+  if (!parentFamId || treeFamilyIds.has(parentFamId)) return;
+
+  const parentFamily = data.families.get(parentFamId);
+  if (!parentFamily) return;
+
+  treeFamilyIds.add(parentFamId);
+
+  const husband = parentFamily.husbandId
+    ? data.individuals.get(parentFamily.husbandId)
+    : undefined;
+  const wife = parentFamily.wifeId
+    ? data.individuals.get(parentFamily.wifeId)
+    : undefined;
+
+  const label = [
+    husband?.displayName || husband?.givenName,
+    wife?.displayName || wife?.givenName,
+  ]
+    .filter(Boolean)
+    .join(" & ");
+
+  const ancestorNode: TreeNode = {
+    id: parentFamId,
+    type: "couple",
+    husband,
+    wife,
+    family: parentFamily,
+    label,
+    sublabel: parentFamily.marriageDate ? `m. ${parentFamily.marriageDate}` : "",
+    childNodes: [],
+  };
+
+  // Position the ancestor node above the child node
+  const ancestorX = childPosNode.x;
+  const ancestorY = childPosNode.y - nodeHeight;
+
+  const posNode: PositionedNode = { node: ancestorNode, x: ancestorX, y: ancestorY };
+  nodes.push(posNode);
+
+  // Edge from ancestor down to the child node
+  edges.push({
+    parentX: ancestorX,
+    parentY: ancestorY,
+    parentAnchorX: ancestorX,
+    childX: childPosNode.x,
+    childY: childPosNode.y,
+  });
+
+  // Recurse: check if the ancestor's spouses also have parents
+  if (husband) {
+    addAncestorChain(data, husband, posNode, nodes, edges, treeFamilyIds, processedIndividuals, nodeHeight);
+  }
+  if (wife) {
+    addAncestorChain(data, wife, posNode, nodes, edges, treeFamilyIds, processedIndividuals, nodeHeight);
+  }
 }
