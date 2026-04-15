@@ -126,6 +126,8 @@ jobs:
             echo "Creating geneao_frontend..."
             clever create geneao_frontend --type static-apache --org "$CLEVER_ORGANIZATION" --region par
           fi
+          clever link geneao_frontend --org "$CLEVER_ORGANIZATION"
+          clever env set APP_FOLDER dist
 
       - name: Summary
         run: |

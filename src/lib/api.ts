@@ -3,7 +3,7 @@
  * Handles authentication, CRUD operations, and file uploads.
  */
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
 // ---- Token management ----
 // JWT is stored as an HttpOnly cookie by the backend (not accessible to JS).

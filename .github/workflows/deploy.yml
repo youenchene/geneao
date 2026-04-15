@@ -44,6 +44,8 @@ jobs:
           cache: npm
 
       - name: Build frontend
+        env:
+          VITE_API_URL: ""
         run: |
           npm ci
           npm run build
@@ -57,6 +59,11 @@ jobs:
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
           CLEVER_ORGANIZATION: ${{ secrets.CLEVER_ORGANIZATION }}
         run: |
+          # Add SPA .htaccess for client-side routing
+          printf 'RewriteEngine On\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule . /index.html [L]\n' > dist/.htaccess
+          # Commit build output (CI-only, never pushed to GitHub)
+          git add -f dist/
+          git commit -m "build: frontend dist"
           clever login --token "$CLEVER_TOKEN" --secret "$CLEVER_SECRET"
           clever link geneao_frontend --org "$CLEVER_ORGANIZATION"
           clever deploy --force
