@@ -59,7 +59,7 @@ jobs:
             echo "geneao_db already exists — skipping creation"
           else
             echo "Creating geneao_db..."
-            clever addon create postgresql-addon geneao_db --org "$CLEVER_ORGANIZATION" --plan dev --link geneao_backend
+            clever addon create postgresql-addon geneao_db --org "$CLEVER_ORGANIZATION" --plan dev
           fi
           clever service link-addon geneao_db
 
@@ -87,7 +87,7 @@ jobs:
             echo "geneao_storage already exists — skipping creation"
           else
             echo "Creating geneao_storage..."
-            clever addon create cellar-addon geneao_storage --org "$CLEVER_ORGANIZATION" --plan s --link geneao_backend
+            clever addon create cellar-addon geneao_storage --org "$CLEVER_ORGANIZATION" --plan s
           fi
           clever service link-addon geneao_storage
 
