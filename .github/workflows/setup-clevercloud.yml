@@ -71,7 +71,7 @@ jobs:
           CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
         run: |
-          PG_URI=$(clever env | grep "^POSTGRESQL_ADDON_URI=" | cut -d= -f2-)
+          PG_URI=$(clever env | grep "^POSTGRESQL_ADDON_URI=" | cut -d= -f2- | tr -d '"')
           if [ -n "$PG_URI" ]; then
             clever env set DATABASE_URL "$PG_URI"
             echo "DATABASE_URL set from POSTGRESQL_ADDON_URI"
@@ -99,9 +99,9 @@ jobs:
           CLEVER_TOKEN: ${{ secrets.CLEVER_TOKEN }}
           CLEVER_SECRET: ${{ secrets.CLEVER_SECRET }}
         run: |
-          CELLAR_HOST=$(clever env | grep "^CELLAR_ADDON_HOST=" | cut -d= -f2-)
-          CELLAR_KEY=$(clever env | grep "^CELLAR_ADDON_KEY_ID=" | cut -d= -f2-)
-          CELLAR_SECRET=$(clever env | grep "^CELLAR_ADDON_KEY_SECRET=" | cut -d= -f2-)
+          CELLAR_HOST=$(clever env | grep "^CELLAR_ADDON_HOST=" | cut -d= -f2- | tr -d '"')
+          CELLAR_KEY=$(clever env | grep "^CELLAR_ADDON_KEY_ID=" | cut -d= -f2- | tr -d '"')
+          CELLAR_SECRET=$(clever env | grep "^CELLAR_ADDON_KEY_SECRET=" | cut -d= -f2- | tr -d '"')
           if [ -n "$CELLAR_HOST" ] && [ -n "$CELLAR_KEY" ] && [ -n "$CELLAR_SECRET" ]; then
             clever env set S3_ENDPOINT "https://$CELLAR_HOST"
             clever env set S3_ACCESS_KEY "$CELLAR_KEY"
