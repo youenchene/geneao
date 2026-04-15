@@ -12,13 +12,23 @@ import { formatLifespan } from "./gedcom-parser";
 
 // ── Public types ─────────────────────────────────────────────────
 
+/** A single union within a multi-couple node. */
+export interface Union {
+  spouse?: Individual;
+  family: Family;
+  childNodes: TreeNode[];
+}
+
 export interface TreeNode {
   id: string;
-  type: "couple" | "individual";
+  type: "couple" | "individual" | "multi-couple";
   husband?: Individual;
   wife?: Individual;
   family?: Family;
   individual?: Individual;
+  /** For multi-couple: the common person + their unions */
+  commonPerson?: Individual;
+  unions?: Union[];
   label: string;
   sublabel: string;
   childNodes: TreeNode[];
@@ -166,11 +176,13 @@ function buildDescendantTree(
       (fid) => !visited.has(fid)
     );
 
-    if (availableFamilies.length > 0) {
-      for (const spouseFamId of availableFamilies) {
-        const childFamilyNode = buildDescendantTree(data, spouseFamId, visited);
-        if (childFamilyNode) childNodes.push(childFamilyNode);
-      }
+    if (availableFamilies.length > 1) {
+      // Multiple spouses → multi-couple node
+      const multiNode = buildMultiCoupleNode(data, child, availableFamilies, visited);
+      if (multiNode) childNodes.push(multiNode);
+    } else if (availableFamilies.length === 1) {
+      const childFamilyNode = buildDescendantTree(data, availableFamilies[0], visited);
+      if (childFamilyNode) childNodes.push(childFamilyNode);
     } else {
       childNodes.push({
         id: child.id,
@@ -199,6 +211,75 @@ function buildDescendantTree(
     label,
     sublabel: family.marriageDate ? `m. ${family.marriageDate}` : "",
     childNodes,
+  };
+}
+
+/**
+ * Build a multi-couple node: one common person with multiple unions.
+ * Each union has a spouse, a family, and its own children subtree.
+ */
+function buildMultiCoupleNode(
+  data: GedcomData,
+  commonPerson: Individual,
+  familyIds: string[],
+  visited: Set<string>
+): TreeNode | null {
+  const unions: Union[] = [];
+  const allChildNodes: TreeNode[] = [];
+
+  for (const famId of familyIds) {
+    if (visited.has(famId)) continue;
+    visited.add(famId);
+
+    const family = data.families.get(famId);
+    if (!family) continue;
+
+    const spouseId =
+      family.husbandId === commonPerson.id ? family.wifeId : family.husbandId;
+    const spouse = spouseId ? data.individuals.get(spouseId) : undefined;
+
+    // Build children for this union
+    const unionChildNodes: TreeNode[] = [];
+    for (const childId of family.childIds) {
+      const child = data.individuals.get(childId);
+      if (!child) continue;
+
+      const childFamilies = child.familiesAsSpouse.filter(
+        (fid) => !visited.has(fid)
+      );
+
+      if (childFamilies.length > 1) {
+        const multiNode = buildMultiCoupleNode(data, child, childFamilies, visited);
+        if (multiNode) unionChildNodes.push(multiNode);
+      } else if (childFamilies.length === 1) {
+        const childFamilyNode = buildDescendantTree(data, childFamilies[0], visited);
+        if (childFamilyNode) unionChildNodes.push(childFamilyNode);
+      } else {
+        unionChildNodes.push({
+          id: child.id,
+          type: "individual",
+          individual: child,
+          label: child.displayName || child.givenName || "?",
+          sublabel: formatLifespan(child),
+          childNodes: [],
+        });
+      }
+    }
+
+    unions.push({ spouse, family, childNodes: unionChildNodes });
+    allChildNodes.push(...unionChildNodes);
+  }
+
+  if (unions.length === 0) return null;
+
+  return {
+    id: `multi-${commonPerson.id}`,
+    type: "multi-couple",
+    commonPerson,
+    unions,
+    label: commonPerson.displayName || commonPerson.givenName || "?",
+    sublabel: formatLifespan(commonPerson),
+    childNodes: allChildNodes,
   };
 }
 
@@ -266,11 +347,53 @@ interface LayoutResult {
   edges: PositionedEdge[];
 }
 
+/** How many standard couple widths a node occupies. */
+function nodeWidthMultiplier(node: TreeNode): number {
+  if (node.type === "multi-couple" && node.unions) {
+    return Math.max(1, node.unions.length);
+  }
+  return 1;
+}
+
+/** Compute the total pixel width of a multi-couple node. */
+export function multiCoupleWidth(unionCount: number): number {
+  return CARD_W * (unionCount + 1) + COUPLE_GAP * unionCount;
+}
+
+/**
+ * For a multi-couple node at center X, compute the edge anchor X
+ * for a given union index (midpoint between common person and that spouse).
+ */
+function unionAnchorX(nodeX: number, unionCount: number, unionIdx: number): number {
+  const totalW = multiCoupleWidth(unionCount);
+  const mStartX = nodeX - totalW / 2;
+  const commonCenterX = mStartX + CARD_W + COUPLE_GAP + CARD_W / 2;
+
+  if (unionIdx === 0) {
+    const spouseCenterX = mStartX + CARD_W / 2;
+    return (commonCenterX + spouseCenterX) / 2;
+  }
+  const spouseX = mStartX + CARD_W + COUPLE_GAP + CARD_W + COUPLE_GAP + (unionIdx - 1) * (CARD_W + COUPLE_GAP);
+  const spouseCenterX = spouseX + CARD_W / 2;
+  return (commonCenterX + spouseCenterX) / 2;
+}
+
+/** Build a map from child node ID → union index for a multi-couple node. */
+function buildChildToUnionMap(node: TreeNode): Map<string, number> {
+  const map = new Map<string, number>();
+  if (node.type === "multi-couple" && node.unions) {
+    for (let i = 0; i < node.unions.length; i++) {
+      for (const child of node.unions[i].childNodes) {
+        map.set(child.id, i);
+      }
+    }
+  }
+  return map;
+}
+
 /**
  * Run d3-hierarchy tree layout on a TreeNode and return positioned
  * nodes + edges. The root is at y=0.
- * @param sibSep - separation multiplier for siblings (default 1.2)
- * @param cousinSep - separation multiplier for non-siblings (default 1.5)
  */
 function layoutTree(
   root: TreeNode,
@@ -281,7 +404,12 @@ function layoutTree(
 
   const treeLayout = tree<TreeNode>()
     .nodeSize([NODE_WIDTH, NODE_HEIGHT_STEP])
-    .separation((a, b) => (a.parent === b.parent ? sibSep : cousinSep));
+    .separation((a, b) => {
+      const aW = nodeWidthMultiplier(a.data);
+      const bW = nodeWidthMultiplier(b.data);
+      const base = a.parent === b.parent ? sibSep : cousinSep;
+      return base * Math.max(1, (aW + bW) / 2);
+    });
 
   treeLayout(h);
 
@@ -297,9 +425,24 @@ function layoutTree(
   });
 
   h.links().forEach((link) => {
+    const parentNode = link.source.data;
+    const childNode = link.target.data;
+    const px = link.source.x ?? 0;
+    const py = link.source.y ?? 0;
+
+    // For multi-couple parents, offset the edge anchor to the correct union
+    let anchorX = px;
+    if (parentNode.type === "multi-couple" && parentNode.unions) {
+      const childUnionMap = buildChildToUnionMap(parentNode);
+      const unionIdx = childUnionMap.get(childNode.id);
+      if (unionIdx !== undefined) {
+        anchorX = unionAnchorX(px, parentNode.unions.length, unionIdx);
+      }
+    }
+
     edges.push({
-      parentX: link.source.x ?? 0,
-      parentY: link.source.y ?? 0,
+      parentX: anchorX,
+      parentY: py,
       childX: link.target.x ?? 0,
       childY: link.target.y ?? 0,
     });
@@ -559,8 +702,9 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
   let minY = Infinity, maxY = -Infinity;
 
   for (const n of allNodes) {
-    minX = Math.min(minX, n.x - NODE_WIDTH / 2);
-    maxX = Math.max(maxX, n.x + NODE_WIDTH / 2);
+    const halfW = (NODE_WIDTH * nodeWidthMultiplier(n.node)) / 2;
+    minX = Math.min(minX, n.x - halfW);
+    maxX = Math.max(maxX, n.x + halfW);
     minY = Math.min(minY, n.y);
     maxY = Math.max(maxY, n.y + CARD_H);
   }

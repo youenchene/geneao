@@ -6,7 +6,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GedcomData, Individual } from "../lib/gedcom-parser";
-import type { PositionedNode } from "../lib/tree-layout";
+import type { PositionedNode, Union } from "../lib/tree-layout";
+import { multiCoupleWidth } from "../lib/tree-layout";
 import { useEditMode } from "../context/EditModeContext";
 import PersonCard from "./PersonCard";
 import AddPersonButton from "./AddPersonButton";
@@ -71,6 +72,126 @@ export default function TreeNodeView({
 
   const startX = x - NODE_WIDTH / 2;
   const startY = y;
+
+  // ── Multi-couple node ───────────────────────────────────────────
+  if (node.type === "multi-couple" && node.commonPerson && node.unions) {
+    const unions = node.unions;
+    const totalW = multiCoupleWidth(unions.length);
+    const mStartX = x - totalW / 2;
+    const commonHighlighted = highlightedPersonId === node.commonPerson.id;
+    const commonX = mStartX + CARD_W + COUPLE_GAP;
+
+    return (
+      <g
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {/* First spouse (left of common person) */}
+        {unions[0]?.spouse && (
+          <>
+            {highlightedPersonId === unions[0].spouse.id && (
+              <rect x={mStartX - 3} y={startY - 3} width={CARD_W + 6} height={CARD_H + 6}
+                rx={8} ry={8} fill="none" stroke="#f59e0b" strokeWidth={3} />
+            )}
+            <PersonCard
+              individual={unions[0].spouse} x={mStartX} y={startY}
+              width={CARD_W} height={CARD_H}
+              photoUrl={unions[0].spouse.photoUrl} onDataChanged={onDataChanged}
+            />
+            <line x1={mStartX + CARD_W} y1={startY + CARD_H / 2}
+              x2={commonX} y2={startY + CARD_H / 2} stroke="#a8a29e" strokeWidth={1.5} />
+          </>
+        )}
+
+        {/* Common person card (center) */}
+        {commonHighlighted && (
+          <rect x={commonX - 3} y={startY - 3} width={CARD_W + 6} height={CARD_H + 6}
+            rx={8} ry={8} fill="none" stroke="#f59e0b" strokeWidth={3} />
+        )}
+        <PersonCard
+          individual={node.commonPerson} x={commonX} y={startY}
+          width={CARD_W} height={CARD_H}
+          photoUrl={node.commonPerson.photoUrl} onDataChanged={onDataChanged}
+        />
+
+        {/* Additional spouses (right of common person) */}
+        {unions.slice(1).map((union: Union, idx: number) => {
+          const spouseX = commonX + CARD_W + COUPLE_GAP + idx * (CARD_W + COUPLE_GAP);
+          const spouseHighlighted = highlightedPersonId && union.spouse?.id === highlightedPersonId;
+          return (
+            <g key={union.family.id}>
+              <line x1={commonX + CARD_W} y1={startY + CARD_H / 2}
+                x2={spouseX} y2={startY + CARD_H / 2} stroke="#a8a29e" strokeWidth={1.5} />
+              {union.spouse && (
+                <>
+                  {spouseHighlighted && (
+                    <rect x={spouseX - 3} y={startY - 3} width={CARD_W + 6} height={CARD_H + 6}
+                      rx={8} ry={8} fill="none" stroke="#f59e0b" strokeWidth={3} />
+                  )}
+                  <PersonCard
+                    individual={union.spouse} x={spouseX} y={startY}
+                    width={CARD_W} height={CARD_H}
+                    photoUrl={union.spouse.photoUrl} onDataChanged={onDataChanged}
+                  />
+                </>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Edit mode: Add child buttons — one per union */}
+        {editMode && unions.map((union: Union, idx: number) => {
+          const spX = idx === 0
+            ? mStartX + CARD_W / 2
+            : commonX + CARD_W + COUPLE_GAP + (idx - 1) * (CARD_W + COUPLE_GAP) + CARD_W / 2;
+          const midX = (commonX + CARD_W / 2 + spX) / 2;
+          const childApiIds = union.family.childIds
+            .map((cid) => data.individuals.get(cid)?.apiId)
+            .filter((id): id is string => !!id);
+          return (
+            <AddPersonButton
+              key={`child-${union.family.id}`}
+              type="child" x={midX} y={startY + CARD_H + 28}
+              linkedIndividualApiId={node.commonPerson?.apiId || ""}
+              linkedIndividualSex={node.commonPerson?.sex}
+              familyApiId={union.family.apiId || ""}
+              existingChildApiIds={childApiIds}
+              onCreated={() => onDataChanged?.()}
+            />
+          );
+        })}
+
+        {/* Edit mode: Add another spouse (rightmost side) */}
+        {editMode && (
+          <AddPersonButton
+            type="alliance" x={mStartX + totalW + 14} y={startY + CARD_H / 2}
+            linkedIndividualApiId={node.commonPerson.apiId || ""}
+            linkedIndividualSex={node.commonPerson.sex}
+            tooltipKey="tooltip.addAnotherSpouse"
+            onCreated={() => onDataChanged?.()}
+          />
+        )}
+
+        {/* Collapse/expand toggle */}
+        {childCount !== undefined && childCount > 0 && (() => {
+          const isAncestor = node.id.startsWith("anc-");
+          const toggleY = isAncestor ? startY - 12 : startY + CARD_H + 12;
+          return (
+            <g onClick={(e) => { e.stopPropagation(); onToggleCollapse?.(node.id); }}
+              style={{ cursor: "pointer" }}>
+              <title>{isCollapsed ? t("tooltip.expand", { count: childCount }) : t("tooltip.collapse")}</title>
+              <circle cx={x} cy={toggleY} r={9}
+                fill={hovered ? "#e7e5e4" : "white"} stroke="#a8a29e" strokeWidth={1} />
+              <text x={x} y={toggleY} textAnchor="middle" dominantBaseline="central"
+                fontSize={10} fill="#57534e" fontFamily="system-ui, sans-serif" fontWeight={700}>
+                {isCollapsed ? `+${childCount}` : "−"}
+              </text>
+            </g>
+          );
+        })()}
+      </g>
+    );
+  }
 
   // ── Couple node ────────────────────────────────────────────────
   if (node.type === "couple") {

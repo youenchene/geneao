@@ -24,6 +24,9 @@ function findNodeForPerson(
     const n = pn.node;
     if (n.type === "couple") {
       if (n.husband?.id === personId || n.wife?.id === personId) return pn;
+    } else if (n.type === "multi-couple") {
+      if (n.commonPerson?.id === personId) return pn;
+      if (n.unions?.some((u) => u.spouse?.id === personId)) return pn;
     } else if (n.type === "individual") {
       if (n.individual?.id === personId) return pn;
     }
