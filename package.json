@@ -19,6 +19,7 @@
     "react-dom": "^19.2.4",
     "react-i18next": "^17.0.2",
     "react-zoom-pan-pinch": "^4.0.3",
+    "relatives-tree": "^3.2.2",
     "tailwindcss": "^4.2.2"
   },
   "devDependencies": {

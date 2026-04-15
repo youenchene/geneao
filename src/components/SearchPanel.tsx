@@ -20,18 +20,7 @@ function findNodeForPerson(
   layout: TreeLayout,
   personId: string
 ): PositionedNode | null {
-  for (const pn of layout.nodes) {
-    const n = pn.node;
-    if (n.type === "couple") {
-      if (n.husband?.id === personId || n.wife?.id === personId) return pn;
-    } else if (n.type === "multi-couple") {
-      if (n.commonPerson?.id === personId) return pn;
-      if (n.unions?.some((u) => u.spouse?.id === personId)) return pn;
-    } else if (n.type === "individual") {
-      if (n.individual?.id === personId) return pn;
-    }
-  }
-  return null;
+  return layout.nodes.find((pn) => pn.node.id === personId) ?? null;
 }
 
 function normalize(s: string): string {

@@ -1,13 +1,9 @@
 /**
- * Renders a tree node: a couple (two person cards side-by-side),
- * a multi-couple (one common person with multiple spouses), or a
- * single individual card. Supports highlighting, edit mode with
- * add alliance/child buttons.
+ * Renders a single person node in the tree.
+ * Supports highlighting, edit mode with add alliance/child/parent buttons.
  */
-import { useState } from "react";
-import { useTranslation } from "react-i18next";
 import type { GedcomData, Individual } from "../lib/gedcom-parser";
-import type { PositionedNode, Union } from "../lib/tree-layout";
+import type { PositionedNode } from "../lib/tree-layout";
 import { useEditMode } from "../context/EditModeContext";
 import PersonCard from "./PersonCard";
 import AddPersonButton from "./AddPersonButton";
@@ -15,26 +11,15 @@ import AddPersonButton from "./AddPersonButton";
 interface Props {
   posNode: PositionedNode;
   data: GedcomData;
-  onToggleCollapse?: (nodeId: string) => void;
-  isCollapsed?: boolean;
-  childCount?: number;
   highlightedPersonId?: string | null;
   onDataChanged?: () => void;
 }
 
 const CARD_W = 90;
 const CARD_H = 50;
-const COUPLE_GAP = 8;
 
-export const NODE_WIDTH = CARD_W * 2 + COUPLE_GAP;
+export const NODE_WIDTH = CARD_W;
 export const NODE_HEIGHT = CARD_H;
-
-/** Resolve GEDCOM child IDs of a family to their backend API UUIDs. */
-function getChildApiIds(data: GedcomData, family: { childIds: string[] }): string[] {
-  return family.childIds
-    .map((cid) => data.individuals.get(cid)?.apiId)
-    .filter((id): id is string => !!id);
-}
 
 /** Count how many parents a person has (0, 1, or 2). */
 function countParents(data: GedcomData, individual: Individual): number {
@@ -56,481 +41,25 @@ function getParentFamilyApiId(data: GedcomData, individual: Individual): string 
   return family?.apiId;
 }
 
-/** Compute the total pixel width of a multi-couple node. */
-function multiCoupleWidth(unionCount: number): number {
-  // Layout: [spouse0] gap [common] gap [spouse1] gap [spouse2] ...
-  // = unionCount spouse cards + 1 common card + (unionCount) gaps
-  return CARD_W * (unionCount + 1) + COUPLE_GAP * unionCount;
-}
-
 export default function TreeNodeView({
   posNode,
   data,
-  onToggleCollapse,
-  isCollapsed,
-  childCount,
   highlightedPersonId,
   onDataChanged,
 }: Props) {
-  const { t } = useTranslation();
-  const [hovered, setHovered] = useState(false);
   const { editMode } = useEditMode();
   const { node, x, y } = posNode;
+  const indi = node.individual;
 
-  // Center the node at (x, y)
-  const startX = x - NODE_WIDTH / 2;
-  const startY = y;
-
-  // ── Multi-couple node ──────────────────────────────────────────
-  if (node.type === "multi-couple" && node.commonPerson && node.unions) {
-    const unions = node.unions;
-    const totalW = multiCoupleWidth(unions.length);
-    const mStartX = x - totalW / 2;
-    const commonHighlighted =
-      highlightedPersonId === node.commonPerson.id;
-
-    // Place the common person card in the center
-    const commonX = mStartX + CARD_W + COUPLE_GAP;
-
-    return (
-      <g
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
-        {/* First spouse (left of common person) */}
-        {unions[0]?.spouse && (
-          <>
-            {highlightedPersonId === unions[0].spouse.id && (
-              <rect
-                x={mStartX - 3}
-                y={startY - 3}
-                width={CARD_W + 6}
-                height={CARD_H + 6}
-                rx={8}
-                ry={8}
-                fill="none"
-                stroke="#f59e0b"
-                strokeWidth={3}
-              />
-            )}
-            <PersonCard
-              individual={unions[0].spouse}
-              x={mStartX}
-              y={startY}
-              width={CARD_W}
-              height={CARD_H}
-              photoUrl={unions[0].spouse.photoUrl}
-              onDataChanged={onDataChanged}
-            />
-            {/* Connector line: first spouse → common person */}
-            <line
-              x1={mStartX + CARD_W}
-              y1={startY + CARD_H / 2}
-              x2={commonX}
-              y2={startY + CARD_H / 2}
-              stroke="#a8a29e"
-              strokeWidth={1.5}
-            />
-          </>
-        )}
-
-        {/* Common person card (center) */}
-        {commonHighlighted && (
-          <rect
-            x={commonX - 3}
-            y={startY - 3}
-            width={CARD_W + 6}
-            height={CARD_H + 6}
-            rx={8}
-            ry={8}
-            fill="none"
-            stroke="#f59e0b"
-            strokeWidth={3}
-          />
-        )}
-        <PersonCard
-          individual={node.commonPerson}
-          x={commonX}
-          y={startY}
-          width={CARD_W}
-          height={CARD_H}
-          photoUrl={node.commonPerson.photoUrl}
-          onDataChanged={onDataChanged}
-        />
-
-        {/* Additional spouses (right of common person) */}
-        {unions.slice(1).map((union: Union, idx: number) => {
-          const spouseX = commonX + CARD_W + COUPLE_GAP + idx * (CARD_W + COUPLE_GAP);
-          const spouseHighlighted =
-            highlightedPersonId && union.spouse?.id === highlightedPersonId;
-
-          return (
-            <g key={union.family.id}>
-              {/* Connector line: common person → this spouse */}
-              <line
-                x1={commonX + CARD_W}
-                y1={startY + CARD_H / 2}
-                x2={spouseX}
-                y2={startY + CARD_H / 2}
-                stroke="#a8a29e"
-                strokeWidth={1.5}
-              />
-              {union.spouse && (
-                <>
-                  {spouseHighlighted && (
-                    <rect
-                      x={spouseX - 3}
-                      y={startY - 3}
-                      width={CARD_W + 6}
-                      height={CARD_H + 6}
-                      rx={8}
-                      ry={8}
-                      fill="none"
-                      stroke="#f59e0b"
-                      strokeWidth={3}
-                    />
-                  )}
-                  <PersonCard
-                    individual={union.spouse}
-                    x={spouseX}
-                    y={startY}
-                    width={CARD_W}
-                    height={CARD_H}
-                    photoUrl={union.spouse.photoUrl}
-                    onDataChanged={onDataChanged}
-                  />
-                </>
-              )}
-            </g>
-          );
-        })}
-
-        {/* Edit mode: Add parent buttons (above cards, for persons with < 2 parents) */}
-        {editMode && countParents(data, node.commonPerson) < 2 && (
-          <AddPersonButton
-            type="parent"
-            x={commonX + CARD_W / 2}
-            y={startY - 14}
-            linkedIndividualApiId={node.commonPerson.apiId || ""}
-            linkedIndividualSex={node.commonPerson.sex}
-            familyApiId={getParentFamilyApiId(data, node.commonPerson)}
-            onCreated={() => onDataChanged?.()}
-          />
-        )}
-        {unions.map((union: Union, idx: number) => {
-          if (!editMode || !union.spouse || countParents(data, union.spouse) >= 2) return null;
-          const spX = idx === 0
-            ? mStartX + CARD_W / 2
-            : commonX + CARD_W + COUPLE_GAP + (idx - 1) * (CARD_W + COUPLE_GAP) + CARD_W / 2;
-          return (
-            <AddPersonButton
-              key={`parent-${union.family.id}`}
-              type="parent"
-              x={spX}
-              y={startY - 14}
-              linkedIndividualApiId={union.spouse.apiId || ""}
-              linkedIndividualSex={union.spouse.sex}
-              familyApiId={getParentFamilyApiId(data, union.spouse)}
-              onCreated={() => onDataChanged?.()}
-            />
-          );
-        })}
-
-        {/* Edit mode: Add child buttons — one per union */}
-        {editMode &&
-          unions.map((union: Union, idx: number) => {
-            // Position the add-child button below the midpoint between common person and this spouse
-            const spouseX =
-              idx === 0
-                ? mStartX + CARD_W / 2
-                : commonX + CARD_W + COUPLE_GAP + (idx - 1) * (CARD_W + COUPLE_GAP) + CARD_W / 2;
-            const midX = (commonX + CARD_W / 2 + spouseX) / 2;
-
-            return (
-              <AddPersonButton
-                key={`child-${union.family.id}`}
-                type="child"
-                x={midX}
-                y={startY + CARD_H + 28}
-                linkedIndividualApiId={node.commonPerson?.apiId || ""}
-                linkedIndividualSex={node.commonPerson?.sex}
-                familyApiId={union.family.apiId || ""}
-                existingChildApiIds={getChildApiIds(data, union.family)}
-                onCreated={() => onDataChanged?.()}
-              />
-            );
-          })}
-
-        {/* Edit mode: Add another spouse (rightmost side) */}
-        {editMode && (
-          <AddPersonButton
-            type="alliance"
-            x={mStartX + totalW + 14}
-            y={startY + CARD_H / 2}
-            linkedIndividualApiId={node.commonPerson.apiId || ""}
-            linkedIndividualSex={node.commonPerson.sex}
-            tooltipKey="tooltip.addAnotherSpouse"
-            onCreated={() => onDataChanged?.()}
-          />
-        )}
-
-        {/* Collapse/expand toggle */}
-        {childCount !== undefined && childCount > 0 && (
-          <g
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleCollapse?.(node.id);
-            }}
-            style={{ cursor: "pointer" }}
-          >
-            <title>{isCollapsed ? t("tooltip.expand", { count: childCount }) : t("tooltip.collapse")}</title>
-            <circle
-              cx={x}
-              cy={startY + CARD_H + 12}
-              r={9}
-              fill={hovered ? "#e7e5e4" : "white"}
-              stroke="#a8a29e"
-              strokeWidth={1}
-            />
-            <text
-              x={x}
-              y={startY + CARD_H + 12}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontSize={10}
-              fill="#57534e"
-              fontFamily="system-ui, sans-serif"
-              fontWeight={700}
-            >
-              {isCollapsed ? `+${childCount}` : "−"}
-            </text>
-          </g>
-        )}
-      </g>
-    );
-  }
-
-  // ── Couple node ────────────────────────────────────────────────
-  if (node.type === "couple") {
-    const husbandHighlighted = highlightedPersonId && node.husband?.id === highlightedPersonId;
-    const wifeHighlighted = highlightedPersonId && node.wife?.id === highlightedPersonId;
-
-    return (
-      <g
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
-        {/* Husband card (left) */}
-        {node.husband && (
-          <>
-            {husbandHighlighted && (
-              <rect
-                x={startX - 3}
-                y={startY - 3}
-                width={CARD_W + 6}
-                height={CARD_H + 6}
-                rx={8}
-                ry={8}
-                fill="none"
-                stroke="#f59e0b"
-                strokeWidth={3}
-              />
-            )}
-            <PersonCard
-              individual={node.husband}
-              x={startX}
-              y={startY}
-              width={CARD_W}
-              height={CARD_H}
-              photoUrl={node.husband.photoUrl}
-              onDataChanged={onDataChanged}
-            />
-          </>
-        )}
-        {/* Wife card (right) */}
-        {node.wife && (
-          <>
-            {wifeHighlighted && (
-              <rect
-                x={startX + CARD_W + COUPLE_GAP - 3}
-                y={startY - 3}
-                width={CARD_W + 6}
-                height={CARD_H + 6}
-                rx={8}
-                ry={8}
-                fill="none"
-                stroke="#f59e0b"
-                strokeWidth={3}
-              />
-            )}
-            <PersonCard
-              individual={node.wife}
-              x={startX + CARD_W + COUPLE_GAP}
-              y={startY}
-              width={CARD_W}
-              height={CARD_H}
-              photoUrl={node.wife.photoUrl}
-              onDataChanged={onDataChanged}
-            />
-          </>
-        )}
-        {/* Marriage connector line */}
-        {node.husband && node.wife && (
-          <line
-            x1={startX + CARD_W}
-            y1={startY + CARD_H / 2}
-            x2={startX + CARD_W + COUPLE_GAP}
-            y2={startY + CARD_H / 2}
-            stroke="#a8a29e"
-            strokeWidth={1.5}
-          />
-        )}
-        {/* If only one spouse, center the single card */}
-        {!node.husband && !node.wife && node.family && (
-          <rect
-            x={startX}
-            y={startY}
-            width={NODE_WIDTH}
-            height={CARD_H}
-            rx={6}
-            fill="#f5f5f4"
-            stroke="#a8a29e"
-            strokeWidth={1}
-          />
-        )}
-
-        {/* Edit mode: Add parent buttons (above cards, for persons with < 2 parents) */}
-        {editMode && node.husband && countParents(data, node.husband) < 2 && (
-          <AddPersonButton
-            type="parent"
-            x={startX + CARD_W / 2}
-            y={startY - 14}
-            linkedIndividualApiId={node.husband.apiId || ""}
-            linkedIndividualSex={node.husband.sex}
-            familyApiId={getParentFamilyApiId(data, node.husband)}
-            onCreated={() => onDataChanged?.()}
-          />
-        )}
-        {editMode && node.wife && countParents(data, node.wife) < 2 && (
-          <AddPersonButton
-            type="parent"
-            x={startX + CARD_W + COUPLE_GAP + CARD_W / 2}
-            y={startY - 14}
-            linkedIndividualApiId={node.wife.apiId || ""}
-            linkedIndividualSex={node.wife.sex}
-            familyApiId={getParentFamilyApiId(data, node.wife)}
-            onCreated={() => onDataChanged?.()}
-          />
-        )}
-
-        {/* Edit mode: Add alliance button — single spouse (fill the empty slot) */}
-        {editMode && node.husband && !node.wife && (
-          <AddPersonButton
-            type="alliance"
-            x={startX + CARD_W + COUPLE_GAP + CARD_W / 2}
-            y={startY + CARD_H / 2}
-            linkedIndividualApiId={node.husband.apiId || ""}
-            linkedIndividualSex={node.husband.sex}
-            onCreated={() => onDataChanged?.()}
-          />
-        )}
-        {editMode && node.wife && !node.husband && (
-          <AddPersonButton
-            type="alliance"
-            x={startX + CARD_W / 2}
-            y={startY + CARD_H / 2}
-            linkedIndividualApiId={node.wife.apiId || ""}
-            linkedIndividualSex={node.wife.sex}
-            onCreated={() => onDataChanged?.()}
-          />
-        )}
-
-        {/* Edit mode: Add another spouse buttons — both spouses present */}
-        {editMode && node.husband && node.wife && (
-          <>
-            {/* Add another spouse for the husband (left side) */}
-            <AddPersonButton
-              type="alliance"
-              x={startX - 14}
-              y={startY + CARD_H / 2}
-              linkedIndividualApiId={node.husband.apiId || ""}
-              linkedIndividualSex={node.husband.sex}
-              tooltipKey="tooltip.addAnotherSpouse"
-              onCreated={() => onDataChanged?.()}
-            />
-            {/* Add another spouse for the wife (right side) */}
-            <AddPersonButton
-              type="alliance"
-              x={startX + NODE_WIDTH + 14}
-              y={startY + CARD_H / 2}
-              linkedIndividualApiId={node.wife.apiId || ""}
-              linkedIndividualSex={node.wife.sex}
-              tooltipKey="tooltip.addAnotherSpouse"
-              onCreated={() => onDataChanged?.()}
-            />
-          </>
-        )}
-
-        {/* Edit mode: Add child button (bottom) */}
-        {editMode && (
-          <AddPersonButton
-            type="child"
-            x={x}
-            y={startY + CARD_H + 28}
-            linkedIndividualApiId={node.husband?.apiId || node.wife?.apiId || ""}
-            linkedIndividualSex={node.husband?.sex || node.wife?.sex}
-            familyApiId={node.family?.apiId || ""}
-            existingChildApiIds={node.family ? getChildApiIds(data, node.family) : []}
-            onCreated={() => onDataChanged?.()}
-          />
-        )}
-
-        {/* Collapse/expand toggle */}
-        {childCount !== undefined && childCount > 0 && (
-          <g
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleCollapse?.(node.id);
-            }}
-            style={{ cursor: "pointer" }}
-          >
-            <title>{isCollapsed ? t("tooltip.expand", { count: childCount }) : t("tooltip.collapse")}</title>
-            <circle
-              cx={x}
-              cy={startY + CARD_H + 12}
-              r={9}
-              fill={hovered ? "#e7e5e4" : "white"}
-              stroke="#a8a29e"
-              strokeWidth={1}
-            />
-            <text
-              x={x}
-              y={startY + CARD_H + 12}
-              textAnchor="middle"
-              dominantBaseline="central"
-              fontSize={10}
-              fill="#57534e"
-              fontFamily="system-ui, sans-serif"
-              fontWeight={700}
-            >
-              {isCollapsed ? `+${childCount}` : "−"}
-            </text>
-          </g>
-        )}
-      </g>
-    );
-  }
-
-  // ── Single individual node ─────────────────────────────────────
-  const individualHighlighted =
-    highlightedPersonId && node.individual?.id === highlightedPersonId;
+  const isHighlighted = highlightedPersonId === indi.id;
 
   return (
     <g>
-      {individualHighlighted && (
+      {/* Highlight ring */}
+      {isHighlighted && (
         <rect
-          x={x - CARD_W / 2 - 3}
-          y={startY - 3}
+          x={x - 3}
+          y={y - 3}
           width={CARD_W + 6}
           height={CARD_H + 6}
           rx={8}
@@ -540,40 +69,66 @@ export default function TreeNodeView({
           strokeWidth={3}
         />
       )}
+
+      {/* Person card */}
       <PersonCard
-        individual={node.individual!}
-        x={x - CARD_W / 2}
-        y={startY}
+        individual={indi}
+        x={x}
+        y={y}
         width={CARD_W}
         height={CARD_H}
-        photoUrl={node.individual!.photoUrl}
+        photoUrl={indi.photoUrl}
         onDataChanged={onDataChanged}
       />
 
       {/* Edit mode: Add parent button (above card, if < 2 parents) */}
-      {editMode && node.individual && countParents(data, node.individual) < 2 && (
+      {editMode && countParents(data, indi) < 2 && (
         <AddPersonButton
           type="parent"
-          x={x}
-          y={startY - 14}
-          linkedIndividualApiId={node.individual.apiId || ""}
-          linkedIndividualSex={node.individual.sex}
-          familyApiId={getParentFamilyApiId(data, node.individual)}
+          x={x + CARD_W / 2}
+          y={y - 14}
+          linkedIndividualApiId={indi.apiId || ""}
+          linkedIndividualSex={indi.sex}
+          familyApiId={getParentFamilyApiId(data, indi)}
           onCreated={() => onDataChanged?.()}
         />
       )}
 
-      {/* Edit mode: Add alliance button (right side of single person) */}
-      {editMode && node.individual && (
+      {/* Edit mode: Add spouse button (right side) */}
+      {editMode && (
         <AddPersonButton
           type="alliance"
-          x={x + CARD_W / 2 + 14}
-          y={startY + CARD_H / 2}
-          linkedIndividualApiId={node.individual.apiId || ""}
-          linkedIndividualSex={node.individual.sex}
+          x={x + CARD_W + 14}
+          y={y + CARD_H / 2}
+          linkedIndividualApiId={indi.apiId || ""}
+          linkedIndividualSex={indi.sex}
+          tooltipKey={indi.familiesAsSpouse.length > 0 ? "tooltip.addAnotherSpouse" : undefined}
           onCreated={() => onDataChanged?.()}
         />
       )}
+
+      {/* Edit mode: Add child button (below card) — only if person has a spouse family */}
+      {editMode && indi.familiesAsSpouse.length > 0 && (() => {
+        // Pick the first spouse family for the add-child button
+        const famId = indi.familiesAsSpouse[0];
+        const fam = data.families.get(famId);
+        if (!fam) return null;
+        const childApiIds = fam.childIds
+          .map((cid) => data.individuals.get(cid)?.apiId)
+          .filter((id): id is string => !!id);
+        return (
+          <AddPersonButton
+            type="child"
+            x={x + CARD_W / 2}
+            y={y + CARD_H + 28}
+            linkedIndividualApiId={indi.apiId || ""}
+            linkedIndividualSex={indi.sex}
+            familyApiId={fam.apiId || ""}
+            existingChildApiIds={childApiIds}
+            onCreated={() => onDataChanged?.()}
+          />
+        );
+      })()}
     </g>
   );
 }

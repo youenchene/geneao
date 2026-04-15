@@ -1,50 +1,34 @@
 /**
- * Custom tree layout engine using d3-hierarchy.
- * Converts GEDCOM family data into a positioned tree for SVG rendering.
+ * Tree layout engine using relatives-tree.
+ * Converts GEDCOM family data into positioned nodes for SVG rendering.
+ * Supports ancestors, descendants, multiple spouses, and siblings.
  */
-import { hierarchy, tree } from "d3-hierarchy";
-import type { GedcomData, Individual, Family } from "./gedcom-parser";
+import calcTree from "relatives-tree";
+import type { Node as RTNode, Relation, RelType, Gender } from "relatives-tree/lib/types";
+import type { GedcomData, Individual } from "./gedcom-parser";
 import { findRootFamily, formatLifespan } from "./gedcom-parser";
-
-/** A single union within a multi-couple node. */
-export interface Union {
-  spouse?: Individual;
-  family: Family;
-  childNodes: TreeNode[];
-}
 
 export interface TreeNode {
   id: string;
-  type: "couple" | "individual" | "multi-couple";
-  // For couple nodes
-  husband?: Individual;
-  wife?: Individual;
-  family?: Family;
-  // For individual nodes (no spouse)
-  individual?: Individual;
-  // For multi-couple nodes: the common person + their unions
-  commonPerson?: Individual;
-  unions?: Union[];
-  // Display
+  type: "individual";
+  individual: Individual;
   label: string;
   sublabel: string;
-  // Children (family units of this couple's children)
-  childNodes: TreeNode[];
 }
 
 export interface PositionedNode {
   node: TreeNode;
   x: number;
   y: number;
+  /** Whether this node has a subtree that can be collapsed. */
+  hasSubTree: boolean;
 }
 
 export interface PositionedEdge {
-  parentX: number;
-  parentY: number;
-  /** X anchor for the edge start — offset for multi-couple union edges. */
-  parentAnchorX: number;
-  childX: number;
-  childY: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
 }
 
 export interface TreeLayout {
@@ -54,425 +38,176 @@ export interface TreeLayout {
   height: number;
 }
 
-/**
- * Build the child nodes for a single family.
- * Returns an array of TreeNode children (couple, multi-couple, or individual).
- */
-function buildChildNodes(
-  data: GedcomData,
-  family: Family,
-  visited: Set<string>
-): TreeNode[] {
-  const childNodes: TreeNode[] = [];
-
-  for (const childId of family.childIds) {
-    const child = data.individuals.get(childId);
-    if (!child) continue;
-
-    // Filter to families not yet visited
-    const availableFamilies = child.familiesAsSpouse.filter(
-      (fid) => !visited.has(fid)
-    );
-
-    if (availableFamilies.length > 1) {
-      // Multiple families → build a multi-couple node
-      const multiNode = buildMultiCoupleNode(data, child, availableFamilies, visited);
-      if (multiNode) childNodes.push(multiNode);
-    } else if (availableFamilies.length === 1) {
-      // Single family → standard couple node
-      const coupleNode = buildTreeNode(data, availableFamilies[0], visited);
-      if (coupleNode) childNodes.push(coupleNode);
-    } else {
-      // No (unvisited) families → leaf individual
-      childNodes.push({
-        id: child.id,
-        type: "individual",
-        individual: child,
-        label: child.displayName || child.givenName || "?",
-        sublabel: formatLifespan(child),
-        childNodes: [],
-      });
-    }
-  }
-
-  return childNodes;
-}
-
-/**
- * Build a multi-couple node: one common person with multiple unions.
- * Each union has a spouse, a family, and its own children subtree.
- */
-function buildMultiCoupleNode(
-  data: GedcomData,
-  commonPerson: Individual,
-  familyIds: string[],
-  visited: Set<string>
-): TreeNode | null {
-  const unions: Union[] = [];
-  const allChildNodes: TreeNode[] = [];
-
-  for (const famId of familyIds) {
-    if (visited.has(famId)) continue;
-    visited.add(famId);
-
-    const family = data.families.get(famId);
-    if (!family) continue;
-
-    // The spouse is the other person in this family
-    const spouseId =
-      family.husbandId === commonPerson.id ? family.wifeId : family.husbandId;
-    const spouse = spouseId ? data.individuals.get(spouseId) : undefined;
-
-    const familyChildNodes = buildChildNodes(data, family, visited);
-
-    unions.push({ spouse, family, childNodes: familyChildNodes });
-    allChildNodes.push(...familyChildNodes);
-  }
-
-  if (unions.length === 0) return null;
-
-  const label = commonPerson.displayName || commonPerson.givenName || "?";
-
-  return {
-    id: `multi-${commonPerson.id}`,
-    type: "multi-couple",
-    commonPerson,
-    unions,
-    label,
-    sublabel: formatLifespan(commonPerson),
-    childNodes: allChildNodes,
-  };
-}
-
-/**
- * Build a hierarchical tree structure from GEDCOM data.
- * Each node is either a couple (husband+wife), a multi-couple
- * (one person with multiple spouses), or a single individual.
- */
-function buildTreeNode(
-  data: GedcomData,
-  familyId: string,
-  visited: Set<string>
-): TreeNode | null {
-  if (visited.has(familyId)) return null;
-  visited.add(familyId);
-
-  const family = data.families.get(familyId);
-  if (!family) return null;
-
-  const husband = family.husbandId
-    ? data.individuals.get(family.husbandId)
-    : undefined;
-  const wife = family.wifeId
-    ? data.individuals.get(family.wifeId)
-    : undefined;
-
-  const childNodes = buildChildNodes(data, family, visited);
-
-  const label = [
-    husband?.displayName || husband?.givenName,
-    wife?.displayName || wife?.givenName,
-  ]
-    .filter(Boolean)
-    .join(" & ");
-
-  const sublabel = family.marriageDate
-    ? `m. ${family.marriageDate}`
-    : "";
-
-  return {
-    id: familyId,
-    type: "couple",
-    husband,
-    wife,
-    family,
-    label,
-    sublabel,
-    childNodes,
-  };
-}
-
-/** Card dimensions — must match TreeNodeView constants. */
+/** Card dimensions used by the renderer. */
 const CARD_W = 90;
-const COUPLE_GAP = 8;
-
-/** How many "standard couple widths" a node occupies. */
-function nodeWidthMultiplier(node: TreeNode): number {
-  if (node.type === "multi-couple" && node.unions) {
-    return Math.max(1, node.unions.length);
-  }
-  return 1;
-}
+const CARD_H = 50;
 
 /**
- * For a multi-couple node at center X, compute the edge anchor X
- * for a given union index (the midpoint between common person and that spouse).
+ * Convert GedcomData individuals + families into the flat Node[]
+ * format that relatives-tree expects.
  */
-function unionAnchorX(nodeX: number, unionCount: number, unionIdx: number): number {
-  const totalW = CARD_W * (unionCount + 1) + COUPLE_GAP * unionCount;
-  const mStartX = nodeX - totalW / 2;
-  // Common person card starts at mStartX + CARD_W + COUPLE_GAP
-  const commonCenterX = mStartX + CARD_W + COUPLE_GAP + CARD_W / 2;
+function toRelativesNodes(data: GedcomData): RTNode[] {
+  const nodes: RTNode[] = [];
 
-  if (unionIdx === 0) {
-    // First spouse is to the left
-    const spouseCenterX = mStartX + CARD_W / 2;
-    return (commonCenterX + spouseCenterX) / 2;
-  }
-  // Additional spouses are to the right
-  const spouseX = mStartX + CARD_W + COUPLE_GAP + CARD_W + COUPLE_GAP + (unionIdx - 1) * (CARD_W + COUPLE_GAP);
-  const spouseCenterX = spouseX + CARD_W / 2;
-  return (commonCenterX + spouseCenterX) / 2;
-}
+  for (const [id, indi] of data.individuals) {
+    const BLOOD = "blood" as RelType;
+    const MARRIED = "married" as RelType;
 
-/**
- * Build a map from child node ID → union index for a multi-couple node.
- */
-function buildChildToUnionMap(node: TreeNode): Map<string, number> {
-  const map = new Map<string, number>();
-  if (node.type === "multi-couple" && node.unions) {
-    for (let i = 0; i < node.unions.length; i++) {
-      for (const child of node.unions[i].childNodes) {
-        map.set(child.id, i);
+    const parents: Relation[] = [];
+    const children: Relation[] = [];
+    const spouses: Relation[] = [];
+    const siblings: Relation[] = [];
+
+    // Parents: from familyAsChild
+    if (indi.familyAsChild) {
+      const parentFam = data.families.get(indi.familyAsChild);
+      if (parentFam) {
+        if (parentFam.husbandId && data.individuals.has(parentFam.husbandId)) {
+          parents.push({ id: parentFam.husbandId, type: BLOOD });
+        }
+        if (parentFam.wifeId && data.individuals.has(parentFam.wifeId)) {
+          parents.push({ id: parentFam.wifeId, type: BLOOD });
+        }
       }
     }
+
+    // Children + spouses: from familiesAsSpouse
+    const spouseIds = new Set<string>();
+    for (const famId of indi.familiesAsSpouse) {
+      const fam = data.families.get(famId);
+      if (!fam) continue;
+
+      // The other spouse in this family
+      const otherId = fam.husbandId === id ? fam.wifeId : fam.husbandId;
+      if (otherId && data.individuals.has(otherId) && !spouseIds.has(otherId)) {
+        spouseIds.add(otherId);
+        spouses.push({ id: otherId, type: MARRIED });
+      }
+
+      // Children of this family
+      for (const childId of fam.childIds) {
+        if (data.individuals.has(childId)) {
+          children.push({ id: childId, type: BLOOD });
+        }
+      }
+    }
+
+    // Siblings: other children in the same parent family
+    if (indi.familyAsChild) {
+      const parentFam = data.families.get(indi.familyAsChild);
+      if (parentFam) {
+        for (const sibId of parentFam.childIds) {
+          if (sibId !== id && data.individuals.has(sibId)) {
+            siblings.push({ id: sibId, type: BLOOD });
+          }
+        }
+      }
+    }
+
+    const gender = (indi.sex === "F" ? "female" : "male") as Gender;
+
+    nodes.push({
+      id,
+      gender,
+      parents,
+      children,
+      spouses,
+      siblings,
+    } as RTNode);
   }
-  return map;
+
+  return nodes;
 }
 
 /**
- * Compute a positioned tree layout using d3-hierarchy.
+ * Find the best root individual for the tree.
+ * Uses the existing findRootFamily, then picks the husband (or wife)
+ * of that family as the root person.
+ */
+function findRootPerson(data: GedcomData): string | null {
+  const rootFamId = findRootFamily(data);
+  if (!rootFamId) {
+    // Fallback: first individual
+    const first = data.individuals.keys().next();
+    return first.done ? null : first.value;
+  }
+
+  const rootFam = data.families.get(rootFamId);
+  if (!rootFam) return null;
+
+  // Prefer husband, then wife, then first child
+  if (rootFam.husbandId && data.individuals.has(rootFam.husbandId)) {
+    return rootFam.husbandId;
+  }
+  if (rootFam.wifeId && data.individuals.has(rootFam.wifeId)) {
+    return rootFam.wifeId;
+  }
+  if (rootFam.childIds.length > 0) {
+    return rootFam.childIds[0];
+  }
+  return null;
+}
+
+/**
+ * Compute a positioned tree layout using relatives-tree.
  */
 export function computeTreeLayout(data: GedcomData): TreeLayout {
-  const rootFamilyId = findRootFamily(data);
-  if (!rootFamilyId) {
+  if (data.individuals.size === 0) {
     return { nodes: [], edges: [], width: 0, height: 0 };
   }
 
-  const rootNode = buildTreeNode(data, rootFamilyId, new Set());
-  if (!rootNode) {
+  const rootId = findRootPerson(data);
+  if (!rootId) {
     return { nodes: [], edges: [], width: 0, height: 0 };
   }
 
-  // Create d3 hierarchy
-  const root = hierarchy<TreeNode>(rootNode, (d) => d.childNodes);
+  const rtNodes = toRelativesNodes(data);
 
-  // Configure the tree layout
-  const NODE_WIDTH = 220;
-  const NODE_HEIGHT = 120;
-  const treeLayout = tree<TreeNode>()
-    .nodeSize([NODE_WIDTH, NODE_HEIGHT])
-    .separation((a, b) => {
-      const aWidth = nodeWidthMultiplier(a.data);
-      const bWidth = nodeWidthMultiplier(b.data);
-      const base = a.parent === b.parent ? 1.2 : 1.5;
-      return base * Math.max(1, (aWidth + bWidth) / 2);
-    });
+  // relatives-tree computes layout in unit coordinates.
+  // Each node occupies 1×1 unit; we scale to our card dimensions.
+  const result = calcTree(rtNodes, { rootId });
 
-  treeLayout(root);
+  const scaleX = CARD_W + 16; // card width + horizontal gap
+  const scaleY = CARD_H + 70; // card height + vertical gap for edges
+  const padding = 40;
 
   const nodes: PositionedNode[] = [];
   const edges: PositionedEdge[] = [];
 
-  root.each((d) => {
+  // Map ExtNode positions to our PositionedNode format
+  for (const extNode of result.nodes) {
+    const indi = data.individuals.get(extNode.id);
+    if (!indi) continue;
+
+    const treeNode: TreeNode = {
+      id: extNode.id,
+      type: "individual",
+      individual: indi,
+      label: indi.displayName || indi.givenName || "?",
+      sublabel: formatLifespan(indi),
+    };
+
     nodes.push({
-      node: d.data,
-      x: d.x ?? 0,
-      y: d.y ?? 0,
+      node: treeNode,
+      x: extNode.left * scaleX + padding,
+      y: extNode.top * scaleY + padding,
+      hasSubTree: extNode.hasSubTree,
     });
-  });
+  }
 
-  root.links().forEach((link) => {
-    const parentNode = link.source.data;
-    const childNode = link.target.data;
-    const px = link.source.x ?? 0;
-    const py = link.source.y ?? 0;
-
-    // Compute the anchor X: for multi-couple parents, offset to the union's midpoint
-    let anchorX = px;
-    if (parentNode.type === "multi-couple" && parentNode.unions) {
-      const childUnionMap = buildChildToUnionMap(parentNode);
-      const unionIdx = childUnionMap.get(childNode.id);
-      if (unionIdx !== undefined) {
-        anchorX = unionAnchorX(px, parentNode.unions.length, unionIdx);
-      }
-    }
-
+  // Map connectors to our PositionedEdge format
+  for (const conn of result.connectors) {
     edges.push({
-      parentX: px,
-      parentY: py,
-      parentAnchorX: anchorX,
-      childX: link.target.x ?? 0,
-      childY: link.target.y ?? 0,
+      x1: conn[0] * scaleX + padding,
+      y1: conn[1] * scaleY + padding,
+      x2: conn[2] * scaleX + padding,
+      y2: conn[3] * scaleY + padding,
     });
-  });
-
-  // ── Add spouse ancestor branches (families not in the main d3 tree) ──
-  addSpouseAncestors(data, nodes, edges, NODE_HEIGHT);
-
-  // Compute bounds — account for wider multi-couple nodes
-  let minX = Infinity,
-    maxX = -Infinity,
-    minY = Infinity,
-    maxY = -Infinity;
-  for (const n of nodes) {
-    const halfW = (NODE_WIDTH * nodeWidthMultiplier(n.node)) / 2;
-    minX = Math.min(minX, n.x - halfW);
-    maxX = Math.max(maxX, n.x + halfW);
-    minY = Math.min(minY, n.y);
-    maxY = Math.max(maxY, n.y + NODE_HEIGHT);
   }
 
-  // Shift all coordinates so the tree starts at (padding, padding)
-  const padding = 40;
-  const offsetX = -minX + padding;
-  const offsetY = -minY + padding;
+  // Compute canvas size
+  const width = result.canvas.width * scaleX + padding * 2;
+  const height = result.canvas.height * scaleY + padding * 2;
 
-  for (const n of nodes) {
-    n.x += offsetX;
-    n.y += offsetY;
-  }
-  for (const e of edges) {
-    e.parentX += offsetX;
-    e.parentY += offsetY;
-    e.parentAnchorX += offsetX;
-    e.childX += offsetX;
-    e.childY += offsetY;
-  }
-
-  return {
-    nodes,
-    edges,
-    width: maxX - minX + padding * 2,
-    height: maxY - minY + padding * 2,
-  };
-}
-
-/**
- * Scan all positioned nodes for spouses whose parent families are not
- * yet in the tree. For each, create ancestor couple nodes above the
- * spouse and connect them with edges. Recurse upward.
- */
-function addSpouseAncestors(
-  data: GedcomData,
-  nodes: PositionedNode[],
-  edges: PositionedEdge[],
-  nodeHeight: number
-): void {
-  // Collect all family IDs already represented in the tree
-  const treeFamilyIds = new Set<string>();
-  for (const pn of nodes) {
-    const n = pn.node;
-    if (n.type === "couple" && n.family) treeFamilyIds.add(n.family.id);
-    if (n.type === "multi-couple" && n.unions) {
-      for (const u of n.unions) treeFamilyIds.add(u.family.id);
-    }
-  }
-
-  // Collect individuals already processed to avoid duplicates
-  const processedIndividuals = new Set<string>();
-
-  // We iterate over a snapshot because we'll push new nodes during the loop
-  const snapshot = [...nodes];
-
-  for (const pn of snapshot) {
-    const spouses = collectSpouses(pn.node);
-    for (const spouse of spouses) {
-      addAncestorChain(data, spouse, pn, nodes, edges, treeFamilyIds, processedIndividuals, nodeHeight);
-    }
-  }
-}
-
-/** Extract all spouse individuals from a tree node. */
-function collectSpouses(node: TreeNode): Individual[] {
-  const result: Individual[] = [];
-  if (node.type === "couple") {
-    if (node.husband) result.push(node.husband);
-    if (node.wife) result.push(node.wife);
-  } else if (node.type === "multi-couple") {
-    if (node.commonPerson) result.push(node.commonPerson);
-    if (node.unions) {
-      for (const u of node.unions) {
-        if (u.spouse) result.push(u.spouse);
-      }
-    }
-  } else if (node.type === "individual" && node.individual) {
-    result.push(node.individual);
-  }
-  return result;
-}
-
-/**
- * For a single individual, walk up through familyAsChild and add
- * ancestor couple nodes above the child node they belong to.
- */
-function addAncestorChain(
-  data: GedcomData,
-  individual: Individual,
-  childPosNode: PositionedNode,
-  nodes: PositionedNode[],
-  edges: PositionedEdge[],
-  treeFamilyIds: Set<string>,
-  processedIndividuals: Set<string>,
-  nodeHeight: number
-): void {
-  if (processedIndividuals.has(individual.id)) return;
-  processedIndividuals.add(individual.id);
-
-  const parentFamId = individual.familyAsChild;
-  if (!parentFamId || treeFamilyIds.has(parentFamId)) return;
-
-  const parentFamily = data.families.get(parentFamId);
-  if (!parentFamily) return;
-
-  treeFamilyIds.add(parentFamId);
-
-  const husband = parentFamily.husbandId
-    ? data.individuals.get(parentFamily.husbandId)
-    : undefined;
-  const wife = parentFamily.wifeId
-    ? data.individuals.get(parentFamily.wifeId)
-    : undefined;
-
-  const label = [
-    husband?.displayName || husband?.givenName,
-    wife?.displayName || wife?.givenName,
-  ]
-    .filter(Boolean)
-    .join(" & ");
-
-  const ancestorNode: TreeNode = {
-    id: parentFamId,
-    type: "couple",
-    husband,
-    wife,
-    family: parentFamily,
-    label,
-    sublabel: parentFamily.marriageDate ? `m. ${parentFamily.marriageDate}` : "",
-    childNodes: [],
-  };
-
-  // Position the ancestor node above the child node
-  const ancestorX = childPosNode.x;
-  const ancestorY = childPosNode.y - nodeHeight;
-
-  const posNode: PositionedNode = { node: ancestorNode, x: ancestorX, y: ancestorY };
-  nodes.push(posNode);
-
-  // Edge from ancestor down to the child node
-  edges.push({
-    parentX: ancestorX,
-    parentY: ancestorY,
-    parentAnchorX: ancestorX,
-    childX: childPosNode.x,
-    childY: childPosNode.y,
-  });
-
-  // Recurse: check if the ancestor's spouses also have parents
-  if (husband) {
-    addAncestorChain(data, husband, posNode, nodes, edges, treeFamilyIds, processedIndividuals, nodeHeight);
-  }
-  if (wife) {
-    addAncestorChain(data, wife, posNode, nodes, edges, treeFamilyIds, processedIndividuals, nodeHeight);
-  }
+  return { nodes, edges, width, height };
 }
