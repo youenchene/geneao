@@ -166,19 +166,43 @@ export default function CustomViewerPage({ data, onDataChanged }: Props) {
             {/* Edges */}
             <g>
               {edges.map((edge, i) => {
-                const midY = (edge.parentY + NODE_HEIGHT + edge.childY) / 2;
-                return (
-                  <path
-                    key={i}
-                    d={`M ${edge.parentX} ${edge.parentY + NODE_HEIGHT}
-                        L ${edge.parentX} ${midY}
-                        L ${edge.childX} ${midY}
-                        L ${edge.childX} ${edge.childY}`}
-                    fill="none"
-                    stroke="#d6d3d1"
-                    strokeWidth={1.5}
-                  />
-                );
+                const goingDown = edge.childY > edge.parentY;
+
+                if (goingDown) {
+                  // Descendant edge: parent bottom → child top
+                  const startY = edge.parentY + NODE_HEIGHT;
+                  const endY = edge.childY;
+                  const midY = (startY + endY) / 2;
+                  return (
+                    <path
+                      key={i}
+                      d={`M ${edge.parentX} ${startY}
+                          L ${edge.parentX} ${midY}
+                          L ${edge.childX} ${midY}
+                          L ${edge.childX} ${endY}`}
+                      fill="none"
+                      stroke="#d6d3d1"
+                      strokeWidth={1.5}
+                    />
+                  );
+                } else {
+                  // Ancestor edge: parent top → child bottom (upward)
+                  const startY = edge.parentY;
+                  const endY = edge.childY + NODE_HEIGHT;
+                  const midY = (startY + endY) / 2;
+                  return (
+                    <path
+                      key={i}
+                      d={`M ${edge.parentX} ${startY}
+                          L ${edge.parentX} ${midY}
+                          L ${edge.childX} ${midY}
+                          L ${edge.childX} ${endY}`}
+                      fill="none"
+                      stroke="#d6d3d1"
+                      strokeWidth={1.5}
+                    />
+                  );
+                }
               })}
             </g>
             {/* Nodes */}
