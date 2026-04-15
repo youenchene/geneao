@@ -6,7 +6,7 @@
  */
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { GedcomData } from "../lib/gedcom-parser";
+import type { GedcomData, Individual } from "../lib/gedcom-parser";
 import type { PositionedNode, Union } from "../lib/tree-layout";
 import { useEditMode } from "../context/EditModeContext";
 import PersonCard from "./PersonCard";
@@ -34,6 +34,26 @@ function getChildApiIds(data: GedcomData, family: { childIds: string[] }): strin
   return family.childIds
     .map((cid) => data.individuals.get(cid)?.apiId)
     .filter((id): id is string => !!id);
+}
+
+/** Count how many parents a person has (0, 1, or 2). */
+function countParents(data: GedcomData, individual: Individual): number {
+  const famId = individual.familyAsChild;
+  if (!famId) return 0;
+  const family = data.families.get(famId);
+  if (!family) return 0;
+  let count = 0;
+  if (family.husbandId) count++;
+  if (family.wifeId) count++;
+  return count;
+}
+
+/** Get the API ID of the family where this person is a child (if any). */
+function getParentFamilyApiId(data: GedcomData, individual: Individual): string | undefined {
+  const famId = individual.familyAsChild;
+  if (!famId) return undefined;
+  const family = data.families.get(famId);
+  return family?.apiId;
 }
 
 /** Compute the total pixel width of a multi-couple node. */
@@ -182,6 +202,37 @@ export default function TreeNodeView({
                 </>
               )}
             </g>
+          );
+        })}
+
+        {/* Edit mode: Add parent buttons (above cards, for persons with < 2 parents) */}
+        {editMode && countParents(data, node.commonPerson) < 2 && (
+          <AddPersonButton
+            type="parent"
+            x={commonX + CARD_W / 2}
+            y={startY - 14}
+            linkedIndividualApiId={node.commonPerson.apiId || ""}
+            linkedIndividualSex={node.commonPerson.sex}
+            familyApiId={getParentFamilyApiId(data, node.commonPerson)}
+            onCreated={() => onDataChanged?.()}
+          />
+        )}
+        {unions.map((union: Union, idx: number) => {
+          if (!editMode || !union.spouse || countParents(data, union.spouse) >= 2) return null;
+          const spX = idx === 0
+            ? mStartX + CARD_W / 2
+            : commonX + CARD_W + COUPLE_GAP + (idx - 1) * (CARD_W + COUPLE_GAP) + CARD_W / 2;
+          return (
+            <AddPersonButton
+              key={`parent-${union.family.id}`}
+              type="parent"
+              x={spX}
+              y={startY - 14}
+              linkedIndividualApiId={union.spouse.apiId || ""}
+              linkedIndividualSex={union.spouse.sex}
+              familyApiId={getParentFamilyApiId(data, union.spouse)}
+              onCreated={() => onDataChanged?.()}
+            />
           );
         })}
 
@@ -348,6 +399,30 @@ export default function TreeNodeView({
           />
         )}
 
+        {/* Edit mode: Add parent buttons (above cards, for persons with < 2 parents) */}
+        {editMode && node.husband && countParents(data, node.husband) < 2 && (
+          <AddPersonButton
+            type="parent"
+            x={startX + CARD_W / 2}
+            y={startY - 14}
+            linkedIndividualApiId={node.husband.apiId || ""}
+            linkedIndividualSex={node.husband.sex}
+            familyApiId={getParentFamilyApiId(data, node.husband)}
+            onCreated={() => onDataChanged?.()}
+          />
+        )}
+        {editMode && node.wife && countParents(data, node.wife) < 2 && (
+          <AddPersonButton
+            type="parent"
+            x={startX + CARD_W + COUPLE_GAP + CARD_W / 2}
+            y={startY - 14}
+            linkedIndividualApiId={node.wife.apiId || ""}
+            linkedIndividualSex={node.wife.sex}
+            familyApiId={getParentFamilyApiId(data, node.wife)}
+            onCreated={() => onDataChanged?.()}
+          />
+        )}
+
         {/* Edit mode: Add alliance button — single spouse (fill the empty slot) */}
         {editMode && node.husband && !node.wife && (
           <AddPersonButton
@@ -474,6 +549,19 @@ export default function TreeNodeView({
         photoUrl={node.individual!.photoUrl}
         onDataChanged={onDataChanged}
       />
+
+      {/* Edit mode: Add parent button (above card, if < 2 parents) */}
+      {editMode && node.individual && countParents(data, node.individual) < 2 && (
+        <AddPersonButton
+          type="parent"
+          x={x}
+          y={startY - 14}
+          linkedIndividualApiId={node.individual.apiId || ""}
+          linkedIndividualSex={node.individual.sex}
+          familyApiId={getParentFamilyApiId(data, node.individual)}
+          onCreated={() => onDataChanged?.()}
+        />
+      )}
 
       {/* Edit mode: Add alliance button (right side of single person) */}
       {editMode && node.individual && (

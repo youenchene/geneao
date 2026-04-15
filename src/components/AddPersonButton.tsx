@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 import { createIndividual, createFamily, updateFamily, getFamily, type CreateIndividualPayload, type CreateFamilyPayload } from "../lib/api";
 
 interface Props {
-  type: "alliance" | "child";
+  type: "alliance" | "child" | "parent";
   x: number;
   y: number;
   linkedIndividualApiId: string;
@@ -85,6 +85,44 @@ export default function AddPersonButton({
           husband_id: husbandId,
           wife_id: wifeId,
         });
+      } else if (type === "parent") {
+        if (familyApiId) {
+          // Parent family already exists but is missing a parent — fill the empty slot
+          const currentFamily = await getFamily(familyApiId);
+          const updatedPayload: CreateFamilyPayload = {
+            husband_id: currentFamily.husband_id,
+            wife_id: currentFamily.wife_id,
+            marriage_date: currentFamily.marriage_date,
+            marriage_place: currentFamily.marriage_place,
+            divorce_date: currentFamily.divorce_date,
+            note: currentFamily.note,
+            child_ids: currentFamily.child_ids || [],
+          };
+          // Fill the empty parent slot based on the new person's sex
+          if (sex === "F" && !currentFamily.wife_id) {
+            updatedPayload.wife_id = newPerson.id;
+          } else if (sex === "M" && !currentFamily.husband_id) {
+            updatedPayload.husband_id = newPerson.id;
+          } else if (!currentFamily.husband_id) {
+            updatedPayload.husband_id = newPerson.id;
+          } else {
+            updatedPayload.wife_id = newPerson.id;
+          }
+          await updateFamily(familyApiId, updatedPayload);
+        } else {
+          // No parent family exists — create one with the new person as parent
+          // and the linked individual as child
+          const famPayload: CreateFamilyPayload = {
+            husband_id: sex === "M" ? newPerson.id : null,
+            wife_id: sex === "F" ? newPerson.id : null,
+            child_ids: [linkedIndividualApiId],
+          };
+          // If sex unknown, default new person to father
+          if (sex !== "M" && sex !== "F") {
+            famPayload.husband_id = newPerson.id;
+          }
+          await createFamily(famPayload);
+        }
       } else if (type === "child") {
         if (familyApiId) {
           // Fetch the current family so we preserve existing fields
@@ -147,7 +185,7 @@ export default function AddPersonButton({
         }}
         style={{ cursor: "pointer" }}
       >
-        <title>{tooltipKey ? t(tooltipKey) : type === "alliance" ? t("tooltip.addSpouse") : t("tooltip.addChild")}</title>
+        <title>{tooltipKey ? t(tooltipKey) : type === "alliance" ? t("tooltip.addSpouse") : type === "parent" ? t("tooltip.addParent") : t("tooltip.addChild")}</title>
         <circle
           cx={x}
           cy={y}
@@ -184,7 +222,9 @@ export default function AddPersonButton({
               <h2 className="text-lg font-bold text-stone-800 mb-4">
                 {type === "alliance"
                   ? tooltipKey ? t("addPerson.addAnotherSpouse") : t("addPerson.addSpouse")
-                  : t("addPerson.addChild")}
+                  : type === "parent"
+                    ? t("addPerson.addParent")
+                    : t("addPerson.addChild")}
               </h2>
 
               {error && (
