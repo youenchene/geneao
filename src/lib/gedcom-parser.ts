@@ -110,6 +110,7 @@ export function parseGedcom(text: string): GedcomData {
  * Find the root family: the one with the most total descendants.
  */
 export function findRootFamily(data: GedcomData): string | null {
+  // Step 1: find the family with the most descendants (best starting point)
   let bestId: string | null = null;
   let bestCount = 0;
 
@@ -120,7 +121,56 @@ export function findRootFamily(data: GedcomData): string | null {
       bestId = famId;
     }
   }
-  return bestId;
+
+  if (!bestId) return null;
+
+  // Step 2: walk UP through spouse parent families to find the true root.
+  // From the best family, check if either spouse has a parent family,
+  // and keep climbing until no more ancestors are found.
+  return climbToRoot(data, bestId);
+}
+
+/**
+ * Starting from a family, walk up through familyAsChild links of both
+ * spouses to find the topmost ancestor family in the lineage.
+ */
+function climbToRoot(data: GedcomData, familyId: string): string {
+  const visited = new Set<string>();
+  let currentId = familyId;
+
+  while (true) {
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+
+    const family = data.families.get(currentId);
+    if (!family) break;
+
+    // Check if either spouse has a parent family we can climb to
+    let parentFamilyId: string | null = null;
+
+    const husband = family.husbandId ? data.individuals.get(family.husbandId) : undefined;
+    if (husband?.familyAsChild) {
+      const parentFam = data.families.get(husband.familyAsChild);
+      if (parentFam && !visited.has(husband.familyAsChild)) {
+        parentFamilyId = husband.familyAsChild;
+      }
+    }
+
+    if (!parentFamilyId) {
+      const wife = family.wifeId ? data.individuals.get(family.wifeId) : undefined;
+      if (wife?.familyAsChild) {
+        const parentFam = data.families.get(wife.familyAsChild);
+        if (parentFam && !visited.has(wife.familyAsChild)) {
+          parentFamilyId = wife.familyAsChild;
+        }
+      }
+    }
+
+    if (!parentFamilyId) break;
+    currentId = parentFamilyId;
+  }
+
+  return currentId;
 }
 
 function countDescendants(
