@@ -305,6 +305,61 @@ function layoutTree(root: TreeNode): LayoutResult {
 // ── Spouse ancestor mini-trees ───────────────────────────────────
 
 /**
+ * Take a d3 layout result (top-down) and flip it so it grows upward.
+ * Positions the root at (anchorX, anchorY) and flips children above.
+ * Skips the root node itself (skipRootId) if it's already in the layout.
+ * Returns the flipped nodes and edges.
+ */
+function flipAncestorLayout(
+  layout: LayoutResult,
+  rootId: string,
+  anchorX: number,
+  anchorY: number,
+  skipRootId?: string
+): LayoutResult {
+  const rootNode = layout.nodes.find((n) => n.node.id === rootId);
+  const rootX = rootNode?.x ?? 0;
+  const rootY = rootNode?.y ?? 0;
+
+  const nodes: PositionedNode[] = [];
+  const edges: PositionedEdge[] = [];
+
+  for (const n of layout.nodes) {
+    if (skipRootId && n.node.id === skipRootId) continue;
+    const relX = n.x - rootX;
+    const relY = n.y - rootY;
+    nodes.push({
+      ...n,
+      x: anchorX + relX,
+      y: anchorY - relY, // flip Y
+    });
+  }
+
+  for (const e of layout.edges) {
+    // In the flipped tree, swap parent/child so edges point correctly:
+    // d3 "source" (parent) = the node closer to root = closer to focal = larger Y after flip
+    // d3 "target" (child) = the node further from root = further up = smaller Y after flip
+    const srcRelX = e.parentX - rootX;
+    const srcRelY = e.parentY - rootY;
+    const tgtRelX = e.childX - rootX;
+    const tgtRelY = e.childY - rootY;
+
+    // After flip: source is at anchorY - srcRelY (closer to anchor, larger Y)
+    //             target is at anchorY - tgtRelY (further from anchor, smaller Y)
+    // For edge drawing: "parent" should be the one ABOVE (smaller Y = the ancestor)
+    //                   "child" should be the one BELOW (larger Y = closer to focal)
+    edges.push({
+      parentX: anchorX + tgtRelX,
+      parentY: anchorY - tgtRelY,
+      childX: anchorX + srcRelX,
+      childY: anchorY - srcRelY,
+    });
+  }
+
+  return { nodes, edges };
+}
+
+/**
  * For every spouse in the descendant tree whose parents are not
  * already in the layout, build a small inverted ancestor tree
  * above them.
@@ -316,7 +371,6 @@ function addSpouseAncestors(
   allEdges: PositionedEdge[],
   visitedFamilies: Set<string>
 ): void {
-  // Collect all family IDs already in the layout
   const layoutFamilyIds = new Set<string>();
   for (const pn of allNodes) {
     if (pn.node.family) layoutFamilyIds.add(pn.node.family.id);
@@ -324,7 +378,6 @@ function addSpouseAncestors(
 
   const processedIndividuals = new Set<string>();
 
-  // Only check spouses in the descendant tree (not the ancestor tree)
   for (const pn of descNodes) {
     const n = pn.node;
     if (n.type !== "couple") continue;
@@ -337,7 +390,6 @@ function addSpouseAncestors(
       if (!spouse.familyAsChild) continue;
       if (layoutFamilyIds.has(spouse.familyAsChild)) continue;
 
-      // Build a small ancestor tree for this spouse
       const ancestorRoot = buildAncestorTree(
         data,
         spouse.familyAsChild,
@@ -345,35 +397,23 @@ function addSpouseAncestors(
       );
       if (!ancestorRoot) continue;
 
-      // Layout it
       const miniLayout = layoutTree(ancestorRoot);
 
-      // Find the root of the mini-layout (the spouse's parent couple)
-      const miniRoot = miniLayout.nodes.find(
-        (mn) => mn.node.id === ancestorRoot.id
+      // Flip the mini-tree so it grows upward, anchored above the spouse's node
+      const flipped = flipAncestorLayout(
+        miniLayout,
+        ancestorRoot.id,
+        pn.x,
+        pn.y - NODE_HEIGHT_STEP
       );
-      if (!miniRoot) continue;
 
-      // Position the mini-tree so its root is above the spouse's couple node
-      const offsetX = pn.x - miniRoot.x;
-      const offsetY = pn.y - NODE_HEIGHT_STEP - miniRoot.y;
-
-      for (const mn of miniLayout.nodes) {
-        mn.x += offsetX;
-        mn.y += offsetY;
-        allNodes.push(mn);
-        layoutFamilyIds.add(mn.node.family?.id ?? "");
+      for (const fn of flipped.nodes) {
+        allNodes.push(fn);
+        layoutFamilyIds.add(fn.node.family?.id ?? "");
       }
+      allEdges.push(...flipped.edges);
 
-      for (const me of miniLayout.edges) {
-        me.parentX += offsetX;
-        me.parentY += offsetY;
-        me.childX += offsetX;
-        me.childY += offsetY;
-        allEdges.push(me);
-      }
-
-      // Edge from the mini-tree root down to the descendant couple node
+      // Edge from the mini-tree root (now above) down to the spouse's couple node
       allEdges.push({
         parentX: pn.x,
         parentY: pn.y - NODE_HEIGHT_STEP,
@@ -413,14 +453,12 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
   }
 
   // ── 2. Ancestor tree (inverted, root at y=0, flipped upward) ──
-  // We need a fresh visited set for ancestors, but mark the focal family
   const ancVisited = new Set<string>();
   ancVisited.add(focalFamilyId);
   const ancRoot = buildAncestorTree(data, focalFamilyId, ancVisited);
 
   if (ancRoot && ancRoot.childNodes.length > 0) {
-    // Build a virtual root that only has the parent branches as children
-    // (skip the focal couple itself since it's already in the descendant tree)
+    // Virtual root = focal couple (already in descendant tree, will be skipped)
     const parentBranches: TreeNode = {
       id: "anc-virtual-root",
       type: "couple",
@@ -434,63 +472,32 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
 
     const ancLayout = layoutTree(parentBranches);
 
-    // Find the virtual root position
-    const ancRootNode = ancLayout.nodes.find(
-      (n) => n.node.id === "anc-virtual-root"
-    );
-    const ancRootX = ancRootNode?.x ?? 0;
-    const ancRootY = ancRootNode?.y ?? 0;
-
     // Find the focal couple position in the descendant tree
-    const focalNode = descNodes.find(
-      (n) => n.node.id === focalFamilyId
-    );
+    const focalNode = descNodes.find((n) => n.node.id === focalFamilyId);
     const focalX = focalNode?.x ?? 0;
 
-    // Offset: align the ancestor root with the focal couple,
-    // then flip Y so ancestors grow upward
-    for (const an of ancLayout.nodes) {
-      // Skip the virtual root (it's the same as the focal couple)
-      if (an.node.id === "anc-virtual-root") continue;
+    // Flip the ancestor tree upward, anchored at the focal couple (y=0),
+    // skipping the virtual root node (it duplicates the focal couple)
+    const flipped = flipAncestorLayout(
+      ancLayout,
+      "anc-virtual-root",
+      focalX,
+      0,
+      "anc-virtual-root"
+    );
 
-      const relX = an.x - ancRootX;
-      const relY = an.y - ancRootY;
+    allNodes.push(...flipped.nodes);
+    allEdges.push(...flipped.edges);
 
-      an.x = focalX + relX;
-      an.y = -relY; // flip: positive Y becomes negative (upward)
-      allNodes.push(an);
-    }
-
-    for (const ae of ancLayout.edges) {
-      const srcRelX = ae.parentX - ancRootX;
-      const srcRelY = ae.parentY - ancRootY;
-      const tgtRelX = ae.childX - ancRootX;
-      const tgtRelY = ae.childY - ancRootY;
-
-      // In the flipped tree, "parent" is actually the child (closer to focal)
-      // and "child" is the ancestor (further from focal, more negative Y)
-      allEdges.push({
-        parentX: focalX + tgtRelX,
-        parentY: -tgtRelY,
-        childX: focalX + srcRelX,
-        childY: -srcRelY,
-      });
-    }
-
-    // Edges from focal couple up to the first ancestor generation
-    // The virtual root's direct children are the parent families
-    for (const an of ancLayout.nodes) {
-      if (an.node.id === "anc-virtual-root") continue;
-      // Check if this node is a direct child of the virtual root
+    // Edges from the first ancestor generation down to the focal couple
+    for (const fn of flipped.nodes) {
       const isDirectChild = ancRoot.childNodes.some(
-        (c) => c.id === an.node.id
+        (c) => c.id === fn.node.id
       );
       if (isDirectChild) {
-        const relX = an.x - ancRootX;
-        const relY = an.y - ancRootY;
         allEdges.push({
-          parentX: focalX + relX,
-          parentY: -relY,
+          parentX: fn.x,
+          parentY: fn.y,
           childX: focalX,
           childY: 0,
         });
