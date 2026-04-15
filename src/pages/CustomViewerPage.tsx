@@ -1,7 +1,7 @@
 /**
- * Custom SVG tree viewer.
- * Uses d3-hierarchy for layout, react-zoom-pan-pinch for navigation,
- * and custom SVG components for rendering.
+ * Custom SVG tree viewer with hourglass layout.
+ * Ancestors fan out upward, descendants fan out downward,
+ * centered on the focal couple.
  */
 import { useMemo, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -12,11 +12,7 @@ import {
 } from "react-zoom-pan-pinch";
 import type { GedcomData } from "../lib/gedcom-parser";
 import { computeTreeLayout } from "../lib/tree-layout";
-import type {
-  PositionedNode,
-  PositionedEdge,
-  TreeLayout,
-} from "../lib/tree-layout";
+import type { TreeLayout, PositionedNode, PositionedEdge } from "../lib/tree-layout";
 import TreeNodeView, { NODE_HEIGHT } from "../components/TreeNodeView";
 import SearchPanel from "../components/SearchPanel";
 
@@ -25,67 +21,90 @@ interface Props {
   onDataChanged?: () => void;
 }
 
-/**
- * Filter out collapsed subtrees from the layout.
- */
+/** Filter layout to hide collapsed subtrees (downward) or ancestor branches (upward). */
 function filterLayout(
   layout: TreeLayout,
   collapsedIds: Set<string>
 ): { nodes: PositionedNode[]; edges: PositionedEdge[] } {
-  if (collapsedIds.size === 0) {
-    return { nodes: layout.nodes, edges: layout.edges };
-  }
+  if (collapsedIds.size === 0) return { nodes: layout.nodes, edges: layout.edges };
 
-  const hiddenNodePositions = new Set<string>();
+  const hiddenPositions = new Set<string>();
 
-  function collectDescendants(nodeId: string, nodes: PositionedNode[]) {
-    const node = nodes.find((n) => n.node.id === nodeId);
-    if (!node) return;
-
+  /** Hide descendants (walk downward: parent → child). */
+  function markHiddenDown(px: number, py: number) {
     for (const edge of layout.edges) {
-      if (edge.parentX === node.x && edge.parentY === node.y) {
-        const childNode = nodes.find(
-          (n) => n.x === edge.childX && n.y === edge.childY
-        );
-        if (childNode) {
-          hiddenNodePositions.add(`${childNode.x},${childNode.y}`);
-          collectDescendants(childNode.node.id, nodes);
+      if (edge.parentX === px && edge.parentY === py && edge.childY > py) {
+        const key = `${edge.childX},${edge.childY}`;
+        if (!hiddenPositions.has(key)) {
+          hiddenPositions.add(key);
+          markHiddenDown(edge.childX, edge.childY);
         }
       }
     }
   }
 
-  for (const id of collapsedIds) {
-    collectDescendants(id, layout.nodes);
+  /** Hide ancestors (walk upward: child → parent). */
+  function markHiddenUp(cx: number, cy: number) {
+    for (const edge of layout.edges) {
+      if (edge.childX === cx && edge.childY === cy && edge.parentY < cy) {
+        const key = `${edge.parentX},${edge.parentY}`;
+        if (!hiddenPositions.has(key)) {
+          hiddenPositions.add(key);
+          markHiddenUp(edge.parentX, edge.parentY);
+        }
+      }
+    }
   }
 
-  const filteredNodes = layout.nodes.filter(
-    (n) => !hiddenNodePositions.has(`${n.x},${n.y}`)
-  );
-  const filteredNodePosSet = new Set(
-    filteredNodes.map((n) => `${n.x},${n.y}`)
-  );
+  for (const pn of layout.nodes) {
+    if (!collapsedIds.has(pn.node.id)) continue;
 
-  const filteredEdges = layout.edges.filter(
+    // Ancestor nodes (id starts with "anc-"): collapse hides parents (upward)
+    if (pn.node.id.startsWith("anc-")) {
+      markHiddenUp(pn.x, pn.y);
+    } else {
+      // Descendant nodes: collapse hides children (downward)
+      markHiddenDown(pn.x, pn.y);
+    }
+  }
+
+  const nodes = layout.nodes.filter(
+    (pn) => !hiddenPositions.has(`${pn.x},${pn.y}`)
+  );
+  const edges = layout.edges.filter(
     (e) =>
-      filteredNodePosSet.has(`${e.parentX},${e.parentY}`) &&
-      filteredNodePosSet.has(`${e.childX},${e.childY}`)
+      !hiddenPositions.has(`${e.parentX},${e.parentY}`) &&
+      !hiddenPositions.has(`${e.childX},${e.childY}`)
   );
 
-  return { nodes: filteredNodes, edges: filteredEdges };
+  return { nodes, edges };
 }
 
-function countDirectChildren(
+/**
+ * Count collapsible connections for a node.
+ * For ancestor nodes: count parent edges (upward).
+ * For descendant nodes: count child edges (downward).
+ */
+function countCollapsible(
   layout: TreeLayout,
-  node: PositionedNode
+  nodeId: string,
+  nodeX: number,
+  nodeY: number
 ): number {
+  if (nodeId.startsWith("anc-")) {
+    // Count edges going up from this node
+    return layout.edges.filter(
+      (e) => e.childX === nodeX && e.childY === nodeY && e.parentY < nodeY
+    ).length;
+  }
+  // Count edges going down from this node
   return layout.edges.filter(
-    (e) => e.parentX === node.x && e.parentY === node.y
+    (e) => e.parentX === nodeX && e.parentY === nodeY && e.childY > nodeY
   ).length;
 }
 
 /**
- * Zoom control buttons + search, rendered inside the TransformWrapper context.
+ * Zoom control buttons + search.
  */
 function Controls({
   data,
@@ -112,27 +131,9 @@ function Controls({
         wrapperRef={wrapperRef}
         onHighlight={onHighlight}
       />
-      <button
-        onClick={() => zoomIn(0.3)}
-        className={btnClass}
-        title={t("viewer.zoomIn")}
-      >
-        +
-      </button>
-      <button
-        onClick={() => zoomOut(0.3)}
-        className={btnClass}
-        title={t("viewer.zoomOut")}
-      >
-        −
-      </button>
-      <button
-        onClick={() => resetTransform()}
-        className={`${btnClass} text-xs font-semibold`}
-        title={t("viewer.fitToScreen")}
-      >
-        ⊞
-      </button>
+      <button onClick={() => zoomIn(0.3)} className={btnClass} title={t("viewer.zoomIn")}>+</button>
+      <button onClick={() => zoomOut(0.3)} className={btnClass} title={t("viewer.zoomOut")}>−</button>
+      <button onClick={() => resetTransform()} className={`${btnClass} text-xs font-semibold`} title={t("viewer.fitToScreen")}>⊞</button>
     </div>
   );
 }
@@ -141,19 +142,14 @@ export default function CustomViewerPage({ data, onDataChanged }: Props) {
   const { t } = useTranslation();
   const layout = useMemo(() => computeTreeLayout(data), [data]);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
-  const [highlightedPersonId, setHighlightedPersonId] = useState<string | null>(
-    null
-  );
+  const [highlightedPersonId, setHighlightedPersonId] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const toggleCollapse = useCallback((nodeId: string) => {
+  const handleToggleCollapse = useCallback((nodeId: string) => {
     setCollapsedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(nodeId)) {
-        next.delete(nodeId);
-      } else {
-        next.add(nodeId);
-      }
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
       return next;
     });
   }, []);
@@ -202,21 +198,43 @@ export default function CustomViewerPage({ data, onDataChanged }: Props) {
             {/* Edges */}
             <g>
               {edges.map((edge, i) => {
-                const anchorX = edge.parentAnchorX;
-                const midY =
-                  (edge.parentY + NODE_HEIGHT + edge.childY) / 2;
-                return (
-                  <path
-                    key={i}
-                    d={`M ${anchorX} ${edge.parentY + NODE_HEIGHT}
-                        L ${anchorX} ${midY}
-                        L ${edge.childX} ${midY}
-                        L ${edge.childX} ${edge.childY}`}
-                    fill="none"
-                    stroke="#d6d3d1"
-                    strokeWidth={1.5}
-                  />
-                );
+                const goingDown = edge.childY > edge.parentY;
+
+                if (goingDown) {
+                  // Descendant edge: parent bottom → child top
+                  const startY = edge.parentY + NODE_HEIGHT;
+                  const endY = edge.childY;
+                  const midY = (startY + endY) / 2;
+                  return (
+                    <path
+                      key={i}
+                      d={`M ${edge.parentX} ${startY}
+                          L ${edge.parentX} ${midY}
+                          L ${edge.childX} ${midY}
+                          L ${edge.childX} ${endY}`}
+                      fill="none"
+                      stroke="#d6d3d1"
+                      strokeWidth={1.5}
+                    />
+                  );
+                } else {
+                  // Ancestor edge: parent top → child bottom (upward)
+                  const startY = edge.parentY;
+                  const endY = edge.childY + NODE_HEIGHT;
+                  const midY = (startY + endY) / 2;
+                  return (
+                    <path
+                      key={i}
+                      d={`M ${edge.parentX} ${startY}
+                          L ${edge.parentX} ${midY}
+                          L ${edge.childX} ${midY}
+                          L ${edge.childX} ${endY}`}
+                      fill="none"
+                      stroke="#d6d3d1"
+                      strokeWidth={1.5}
+                    />
+                  );
+                }
               })}
             </g>
             {/* Nodes */}
@@ -226,9 +244,9 @@ export default function CustomViewerPage({ data, onDataChanged }: Props) {
                   key={posNode.node.id}
                   posNode={posNode}
                   data={data}
-                  onToggleCollapse={toggleCollapse}
+                  onToggleCollapse={handleToggleCollapse}
                   isCollapsed={collapsedIds.has(posNode.node.id)}
-                  childCount={countDirectChildren(layout, posNode)}
+                  childCount={countCollapsible(layout, posNode.node.id, posNode.x, posNode.y)}
                   highlightedPersonId={highlightedPersonId}
                   onDataChanged={onDataChanged}
                 />

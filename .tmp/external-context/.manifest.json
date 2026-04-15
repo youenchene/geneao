@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-04-14T12:00:00Z",
+  "libraries": {
+    "clever-tools": {
+      "files": [
+        {
+          "filename": "addon-create-postgresql-plans.md",
+          "topic": "addon create postgresql plans and s_sml error",
+          "fetched": "2026-04-14T12:00:00Z",
+          "source": "Clever Cloud official docs + GitHub skill"
+        },
+        {
+          "filename": "addon-providers-show.md",
+          "topic": "addon providers show - list available plans",
+          "fetched": "2026-04-14T12:00:00Z",
+          "source": "Clever Cloud official docs + GitHub skill"
+        },
+        {
+          "filename": "check-addon-app-exists.md",
+          "topic": "check if addon or application already exists",
+          "fetched": "2026-04-14T12:00:00Z",
+          "source": "Clever Cloud official docs + GitHub skill"
+        },
+        {
+          "filename": "service-link-addon.md",
+          "topic": "service link-addon command",
+          "fetched": "2026-04-14T12:00:00Z",
+          "source": "Clever Cloud official docs + GitHub skill"
+        }
+      ]
+    }
+  }
+}

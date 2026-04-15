@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-04-15T00:00:00Z",
+  "libraries": {
+    "clever-cloud": {
+      "files": [
+        {
+          "filename": "go-deployment-subdirectory.md",
+          "topic": "Go deployment with subdirectory module, APP_FOLDER, CC_GO_PKG, go.json, build configuration",
+          "tech_stack": "Go",
+          "fetched": "2026-04-15T00:00:00Z",
+          "source": "Context7 API + Official Docs"
+        },
+        {
+          "filename": "go-env-vars-reference.md",
+          "topic": "Go environment variables reference for Clever Cloud",
+          "tech_stack": "Go",
+          "fetched": "2026-04-15T00:00:00Z",
+          "source": "Context7 API + Official Docs"
+        }
+      ]
+    }
+  }
+}
