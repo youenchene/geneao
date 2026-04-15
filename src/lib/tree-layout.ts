@@ -452,52 +452,59 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
     allEdges.push(...descLayout.edges);
   }
 
-  // ── 2. Ancestor tree (inverted, root at y=0, flipped upward) ──
-  const ancVisited = new Set<string>();
-  ancVisited.add(focalFamilyId);
-  const ancRoot = buildAncestorTree(data, focalFamilyId, ancVisited);
+  // ── 2. Ancestor trees (two separate trees, one per spouse) ──
+  // Husband's ancestors → anchored above the LEFT side of the focal couple
+  // Wife's ancestors → anchored above the RIGHT side of the focal couple
+  const focalNode = descNodes.find((n) => n.node.id === focalFamilyId);
+  const focalX = focalNode?.x ?? 0;
+  const focalFamily = data.families.get(focalFamilyId);
 
-  if (ancRoot && ancRoot.childNodes.length > 0) {
-    // Virtual root = focal couple (already in descendant tree, will be skipped)
-    const parentBranches: TreeNode = {
-      id: "anc-virtual-root",
-      type: "couple",
-      husband: ancRoot.husband,
-      wife: ancRoot.wife,
-      family: ancRoot.family,
-      label: ancRoot.label,
-      sublabel: ancRoot.sublabel,
-      childNodes: ancRoot.childNodes,
-    };
+  const HALF_COUPLE = (CARD_W + COUPLE_GAP / 2) / 2; // offset from center to card center
 
-    const ancLayout = layoutTree(parentBranches);
+  if (focalFamily) {
+    const husband = focalFamily.husbandId
+      ? data.individuals.get(focalFamily.husbandId)
+      : undefined;
+    const wife = focalFamily.wifeId
+      ? data.individuals.get(focalFamily.wifeId)
+      : undefined;
 
-    // Find the focal couple position in the descendant tree
-    const focalNode = descNodes.find((n) => n.node.id === focalFamilyId);
-    const focalX = focalNode?.x ?? 0;
+    // Husband's ancestor branch (left side)
+    if (husband?.familyAsChild) {
+      const hAncRoot = buildAncestorTree(data, husband.familyAsChild, new Set([focalFamilyId]));
+      if (hAncRoot) {
+        const hLayout = layoutTree(hAncRoot);
+        const anchorX = focalX - HALF_COUPLE;
+        const flipped = flipAncestorLayout(hLayout, hAncRoot.id, anchorX, -NODE_HEIGHT_STEP);
 
-    // Flip the ancestor tree upward, anchored at the focal couple (y=0),
-    // skipping the virtual root node (it duplicates the focal couple)
-    const flipped = flipAncestorLayout(
-      ancLayout,
-      "anc-virtual-root",
-      focalX,
-      0,
-      "anc-virtual-root"
-    );
+        allNodes.push(...flipped.nodes);
+        allEdges.push(...flipped.edges);
 
-    allNodes.push(...flipped.nodes);
-    allEdges.push(...flipped.edges);
-
-    // Edges from the first ancestor generation down to the focal couple
-    for (const fn of flipped.nodes) {
-      const isDirectChild = ancRoot.childNodes.some(
-        (c) => c.id === fn.node.id
-      );
-      if (isDirectChild) {
+        // Edge from husband's parent couple down to focal couple
         allEdges.push({
-          parentX: fn.x,
-          parentY: fn.y,
+          parentX: anchorX,
+          parentY: -NODE_HEIGHT_STEP,
+          childX: focalX,
+          childY: 0,
+        });
+      }
+    }
+
+    // Wife's ancestor branch (right side)
+    if (wife?.familyAsChild) {
+      const wAncRoot = buildAncestorTree(data, wife.familyAsChild, new Set([focalFamilyId]));
+      if (wAncRoot) {
+        const wLayout = layoutTree(wAncRoot);
+        const anchorX = focalX + HALF_COUPLE;
+        const flipped = flipAncestorLayout(wLayout, wAncRoot.id, anchorX, -NODE_HEIGHT_STEP);
+
+        allNodes.push(...flipped.nodes);
+        allEdges.push(...flipped.edges);
+
+        // Edge from wife's parent couple down to focal couple
+        allEdges.push({
+          parentX: anchorX,
+          parentY: -NODE_HEIGHT_STEP,
           childX: focalX,
           childY: 0,
         });
