@@ -43,6 +43,15 @@ const CARD_W = 90;
 const CARD_H = 50;
 
 /**
+ * Node dimensions including gap, used for scaling.
+ * relatives-tree outputs in half-node units, so we multiply
+ * coordinates by (NODE_W / 2) and (NODE_H / 2).
+ * NODE_W/NODE_H must be larger than CARD_W/CARD_H to leave gaps.
+ */
+const NODE_W = CARD_W + 30;  // 120px per node slot horizontally
+const NODE_H = CARD_H + 80;  // 130px per node slot vertically (room for connectors)
+
+/**
  * Convert GedcomData individuals + families into the flat Node[]
  * format that relatives-tree expects.
  */
@@ -174,8 +183,8 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
   // Multiply by (NODE_SIZE / 2) to get pixel positions (per official example).
   const result = calcTree(rtNodes, { rootId });
 
-  const halfW = CARD_W / 2;
-  const halfH = CARD_H / 2;
+  const halfW = NODE_W / 2;
+  const halfH = NODE_H / 2;
   const padding = 40;
 
   const nodes: PositionedNode[] = [];
