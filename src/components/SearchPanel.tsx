@@ -20,7 +20,15 @@ function findNodeForPerson(
   layout: TreeLayout,
   personId: string
 ): PositionedNode | null {
-  return layout.nodes.find((pn) => pn.node.id === personId) ?? null;
+  for (const pn of layout.nodes) {
+    const n = pn.node;
+    if (n.type === "couple") {
+      if (n.husband?.id === personId || n.wife?.id === personId) return pn;
+    } else if (n.type === "individual") {
+      if (n.individual?.id === personId) return pn;
+    }
+  }
+  return null;
 }
 
 function normalize(s: string): string {

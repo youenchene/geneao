@@ -1,7 +1,7 @@
 /**
- * Custom SVG tree viewer.
- * Uses relatives-tree for layout, react-zoom-pan-pinch for navigation,
- * and custom SVG components for rendering.
+ * Custom SVG tree viewer with hourglass layout.
+ * Ancestors fan out upward, descendants fan out downward,
+ * centered on the focal couple.
  */
 import { useMemo, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -12,8 +12,8 @@ import {
 } from "react-zoom-pan-pinch";
 import type { GedcomData } from "../lib/gedcom-parser";
 import { computeTreeLayout } from "../lib/tree-layout";
-import type { TreeLayout } from "../lib/tree-layout";
-import TreeNodeView from "../components/TreeNodeView";
+import type { TreeLayout, PositionedNode, PositionedEdge } from "../lib/tree-layout";
+import TreeNodeView, { NODE_HEIGHT } from "../components/TreeNodeView";
 import SearchPanel from "../components/SearchPanel";
 
 interface Props {
@@ -21,8 +21,58 @@ interface Props {
   onDataChanged?: () => void;
 }
 
+/** Filter layout to hide collapsed subtrees. */
+function filterLayout(
+  layout: TreeLayout,
+  collapsedIds: Set<string>
+): { nodes: PositionedNode[]; edges: PositionedEdge[] } {
+  if (collapsedIds.size === 0) return { nodes: layout.nodes, edges: layout.edges };
+
+  const hiddenPositions = new Set<string>();
+
+  function markHidden(parentX: number, parentY: number) {
+    for (const edge of layout.edges) {
+      if (edge.parentX === parentX && edge.parentY === parentY) {
+        const key = `${edge.childX},${edge.childY}`;
+        if (!hiddenPositions.has(key)) {
+          hiddenPositions.add(key);
+          markHidden(edge.childX, edge.childY);
+        }
+      }
+    }
+  }
+
+  for (const pn of layout.nodes) {
+    if (collapsedIds.has(pn.node.id)) {
+      markHidden(pn.x, pn.y);
+    }
+  }
+
+  const nodes = layout.nodes.filter(
+    (pn) => !hiddenPositions.has(`${pn.x},${pn.y}`)
+  );
+  const edges = layout.edges.filter(
+    (e) =>
+      !hiddenPositions.has(`${e.parentX},${e.parentY}`) &&
+      !hiddenPositions.has(`${e.childX},${e.childY}`)
+  );
+
+  return { nodes, edges };
+}
+
+/** Count direct children of a node. */
+function countDirectChildren(
+  layout: TreeLayout,
+  nodeX: number,
+  nodeY: number
+): number {
+  return layout.edges.filter(
+    (e) => e.parentX === nodeX && e.parentY === nodeY
+  ).length;
+}
+
 /**
- * Zoom control buttons + search, rendered inside the TransformWrapper context.
+ * Zoom control buttons + search.
  */
 function Controls({
   data,
@@ -49,27 +99,9 @@ function Controls({
         wrapperRef={wrapperRef}
         onHighlight={onHighlight}
       />
-      <button
-        onClick={() => zoomIn(0.3)}
-        className={btnClass}
-        title={t("viewer.zoomIn")}
-      >
-        +
-      </button>
-      <button
-        onClick={() => zoomOut(0.3)}
-        className={btnClass}
-        title={t("viewer.zoomOut")}
-      >
-        −
-      </button>
-      <button
-        onClick={() => resetTransform()}
-        className={`${btnClass} text-xs font-semibold`}
-        title={t("viewer.fitToScreen")}
-      >
-        ⊞
-      </button>
+      <button onClick={() => zoomIn(0.3)} className={btnClass} title={t("viewer.zoomIn")}>+</button>
+      <button onClick={() => zoomOut(0.3)} className={btnClass} title={t("viewer.zoomOut")}>−</button>
+      <button onClick={() => resetTransform()} className={`${btnClass} text-xs font-semibold`} title={t("viewer.fitToScreen")}>⊞</button>
     </div>
   );
 }
@@ -77,16 +109,27 @@ function Controls({
 export default function CustomViewerPage({ data, onDataChanged }: Props) {
   const { t } = useTranslation();
   const layout = useMemo(() => computeTreeLayout(data), [data]);
-  const [highlightedPersonId, setHighlightedPersonId] = useState<string | null>(
-    null
-  );
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [highlightedPersonId, setHighlightedPersonId] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const handleToggleCollapse = useCallback((nodeId: string) => {
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return next;
+    });
+  }, []);
 
   const handleHighlight = useCallback((personId: string | null) => {
     setHighlightedPersonId(personId);
   }, []);
 
-  const { nodes, edges } = layout;
+  const { nodes, edges } = useMemo(
+    () => filterLayout(layout, collapsedIds),
+    [layout, collapsedIds]
+  );
 
   if (nodes.length === 0) {
     return (
@@ -120,19 +163,23 @@ export default function CustomViewerPage({ data, onDataChanged }: Props) {
             height={layout.height}
             viewBox={`0 0 ${layout.width} ${layout.height}`}
           >
-            {/* Connectors (edges) */}
+            {/* Edges */}
             <g>
-              {edges.map((edge, i) => (
-                <line
-                  key={i}
-                  x1={edge.x1}
-                  y1={edge.y1}
-                  x2={edge.x2}
-                  y2={edge.y2}
-                  stroke="#d6d3d1"
-                  strokeWidth={1.5}
-                />
-              ))}
+              {edges.map((edge, i) => {
+                const midY = (edge.parentY + NODE_HEIGHT + edge.childY) / 2;
+                return (
+                  <path
+                    key={i}
+                    d={`M ${edge.parentX} ${edge.parentY + NODE_HEIGHT}
+                        L ${edge.parentX} ${midY}
+                        L ${edge.childX} ${midY}
+                        L ${edge.childX} ${edge.childY}`}
+                    fill="none"
+                    stroke="#d6d3d1"
+                    strokeWidth={1.5}
+                  />
+                );
+              })}
             </g>
             {/* Nodes */}
             <g>
@@ -141,6 +188,9 @@ export default function CustomViewerPage({ data, onDataChanged }: Props) {
                   key={posNode.node.id}
                   posNode={posNode}
                   data={data}
+                  onToggleCollapse={handleToggleCollapse}
+                  isCollapsed={collapsedIds.has(posNode.node.id)}
+                  childCount={countDirectChildren(layout, posNode.x, posNode.y)}
                   highlightedPersonId={highlightedPersonId}
                   onDataChanged={onDataChanged}
                 />
