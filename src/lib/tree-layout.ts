@@ -465,7 +465,9 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
   const focalX = focalNode?.x ?? 0;
   const focalFamily = data.families.get(focalFamilyId);
 
-  const HALF_COUPLE = (CARD_W + COUPLE_GAP / 2) / 2; // offset from center to card center
+  // Offset from focal center to each ancestor branch anchor.
+  // Must be at least NODE_WIDTH/2 so the two parent couples don't overlap.
+  const ANC_OFFSET = NODE_WIDTH / 2 + 20; // 114px each side → 228px apart
 
   if (focalFamily) {
     const husband = focalFamily.husbandId
@@ -480,7 +482,7 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
       const hAncRoot = buildAncestorTree(data, husband.familyAsChild, new Set([focalFamilyId]));
       if (hAncRoot) {
         const hLayout = layoutTree(hAncRoot, 1.8, 2.2);
-        const anchorX = focalX - HALF_COUPLE;
+        const anchorX = focalX - ANC_OFFSET;
         const flipped = flipAncestorLayout(hLayout, hAncRoot.id, anchorX, -NODE_HEIGHT_STEP);
 
         allNodes.push(...flipped.nodes);
@@ -501,7 +503,7 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
       const wAncRoot = buildAncestorTree(data, wife.familyAsChild, new Set([focalFamilyId]));
       if (wAncRoot) {
         const wLayout = layoutTree(wAncRoot, 1.8, 2.2);
-        const anchorX = focalX + HALF_COUPLE;
+        const anchorX = focalX + ANC_OFFSET;
         const flipped = flipAncestorLayout(wLayout, wAncRoot.id, anchorX, -NODE_HEIGHT_STEP);
 
         allNodes.push(...flipped.nodes);
