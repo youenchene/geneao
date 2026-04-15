@@ -42,6 +42,9 @@ jobs:
             clever create geneao_backend --type go --org "$CLEVER_ORGANIZATION" --region par
           fi
           clever link geneao_backend --org "$CLEVER_ORGANIZATION"
+          clever env set APP_FOLDER backend
+          clever env set CC_GO_BUILD_TOOL gomod
+          clever env set CC_GO_PKG ./cmd/server
           clever env set PORT 8080
           clever env set GENEAO_PASSWORD "$GENEAO_PASSWORD"
           clever env set JWT_SECRET "$JWT_SECRET"
