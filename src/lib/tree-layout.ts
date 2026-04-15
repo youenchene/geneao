@@ -51,7 +51,7 @@ const CARD_W = 90;
 const CARD_H = 50;
 const COUPLE_GAP = 8;
 const NODE_WIDTH = CARD_W * 2 + COUPLE_GAP;  // 188
-const NODE_HEIGHT_STEP = 120; // vertical distance between generations
+const NODE_HEIGHT_STEP = 150; // vertical distance between generations
 
 // ── Focal couple identification ──────────────────────────────────
 
