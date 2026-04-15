@@ -269,13 +269,19 @@ interface LayoutResult {
 /**
  * Run d3-hierarchy tree layout on a TreeNode and return positioned
  * nodes + edges. The root is at y=0.
+ * @param sibSep - separation multiplier for siblings (default 1.2)
+ * @param cousinSep - separation multiplier for non-siblings (default 1.5)
  */
-function layoutTree(root: TreeNode): LayoutResult {
+function layoutTree(
+  root: TreeNode,
+  sibSep = 1.2,
+  cousinSep = 1.5
+): LayoutResult {
   const h = hierarchy<TreeNode>(root, (d) => d.childNodes);
 
   const treeLayout = tree<TreeNode>()
     .nodeSize([NODE_WIDTH, NODE_HEIGHT_STEP])
-    .separation((a, b) => (a.parent === b.parent ? 1.2 : 1.5));
+    .separation((a, b) => (a.parent === b.parent ? sibSep : cousinSep));
 
   treeLayout(h);
 
@@ -397,7 +403,7 @@ function addSpouseAncestors(
       );
       if (!ancestorRoot) continue;
 
-      const miniLayout = layoutTree(ancestorRoot);
+      const miniLayout = layoutTree(ancestorRoot, 1.8, 2.2);
 
       // Flip the mini-tree so it grows upward, anchored above the spouse's node
       const flipped = flipAncestorLayout(
@@ -473,7 +479,7 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
     if (husband?.familyAsChild) {
       const hAncRoot = buildAncestorTree(data, husband.familyAsChild, new Set([focalFamilyId]));
       if (hAncRoot) {
-        const hLayout = layoutTree(hAncRoot);
+        const hLayout = layoutTree(hAncRoot, 1.8, 2.2);
         const anchorX = focalX - HALF_COUPLE;
         const flipped = flipAncestorLayout(hLayout, hAncRoot.id, anchorX, -NODE_HEIGHT_STEP);
 
@@ -494,7 +500,7 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
     if (wife?.familyAsChild) {
       const wAncRoot = buildAncestorTree(data, wife.familyAsChild, new Set([focalFamilyId]));
       if (wAncRoot) {
-        const wLayout = layoutTree(wAncRoot);
+        const wLayout = layoutTree(wAncRoot, 1.8, 2.2);
         const anchorX = focalX + HALF_COUPLE;
         const flipped = flipAncestorLayout(wLayout, wAncRoot.id, anchorX, -NODE_HEIGHT_STEP);
 
