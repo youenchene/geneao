@@ -62,6 +62,8 @@ jobs:
           # Add SPA .htaccess for client-side routing
           printf 'RewriteEngine On\nRewriteCond %%{REQUEST_FILENAME} !-f\nRewriteCond %%{REQUEST_FILENAME} !-d\nRewriteRule . /index.html [L]\n' > dist/.htaccess
           # Commit build output (CI-only, never pushed to GitHub)
+          git config user.email "ci@geneao.app"
+          git config user.name "Geneao CI"
           git add -f dist/
           git commit -m "build: frontend dist"
           clever login --token "$CLEVER_TOKEN" --secret "$CLEVER_SECRET"
