@@ -33,3 +33,9 @@ Geneao — a web app for browsing and editing genealogy data. React SPA frontend
 - **API calls**: Use the `apiFetch<T>` wrapper in `src/lib/api.ts` with typed payloads
 - **Shared state**: React Context pattern (see `src/context/EditModeContext.tsx`)
 - **Type imports**: Use `import type` for type-only imports
+
+## Git Workflow
+
+- **Never commit code changes directly to `main`.** If the current branch is `main`, create a dedicated branch (e.g. `feat/short-description` or `fix/short-description`) before making any changes.
+- Open a Pull Request to merge the branch back into `main`.
+- Only push after the user has tested the changes locally.
