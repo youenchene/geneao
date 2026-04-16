@@ -46,7 +46,7 @@ export default function PersonDetailModal({ individual, onClose }: Props) {
           <img
             src={imgSrc}
             alt={fullName}
-            className="w-20 h-20 rounded-full object-cover border-2 border-stone-200 mb-3"
+            className="w-60 h-60 rounded-full object-cover border-2 border-stone-200 mb-3"
           />
           <h2 className="text-lg font-bold text-stone-800 text-center">{fullName}</h2>
           {lifespan && (
