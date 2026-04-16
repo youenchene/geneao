@@ -15,6 +15,7 @@ import { computeTreeLayout } from "../lib/tree-layout";
 import type { TreeLayout, PositionedNode, PositionedEdge } from "../lib/tree-layout";
 import TreeNodeView, { NODE_HEIGHT } from "../components/TreeNodeView";
 import SearchPanel from "../components/SearchPanel";
+import DescendantStats from "../components/DescendantStats";
 
 interface Props {
   data: GedcomData;
@@ -186,6 +187,7 @@ export default function CustomViewerPage({ data, onDataChanged }: Props) {
           wrapperRef={wrapperRef}
           onHighlight={handleHighlight}
         />
+        <DescendantStats data={data} focalFamilyId={layout.focalFamilyId} />
         <TransformComponent
           wrapperStyle={{ width: "100%", height: "100%" }}
           contentStyle={{ width: layout.width, height: layout.height }}
