@@ -107,5 +107,12 @@
     "label": "Language",
     "fr": "Français",
     "en": "English"
+  },
+  "stats": {
+    "title": "Descendants",
+    "children": "Children",
+    "grandchildren": "Grandchildren",
+    "greatGrandchildren": "Great-grandchildren",
+    "nthGreatGrandchildren": "{{ordinal}}th great-grandchildren"
   }
 }

@@ -53,6 +53,7 @@ export interface TreeLayout {
   width: number;
   height: number;
   focalY: number;
+  focalFamilyId: string | null;
 }
 
 // ── Constants ────────────────────────────────────────────────────
@@ -584,7 +585,7 @@ function addSpouseAncestors(
 export function computeTreeLayout(data: GedcomData): TreeLayout {
   const focalFamilyId = findFocalFamily(data);
   if (!focalFamilyId) {
-    return { nodes: [], edges: [], width: 0, height: 0, focalY: 0 };
+    return { nodes: [], edges: [], width: 0, height: 0, focalY: 0, focalFamilyId: null };
   }
 
   const allNodes: PositionedNode[] = [];
@@ -695,7 +696,7 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
 
   // ── 4. Compute bounds and shift to positive coordinates ──
   if (allNodes.length === 0) {
-    return { nodes: [], edges: [], width: 0, height: 0, focalY: 0 };
+    return { nodes: [], edges: [], width: 0, height: 0, focalY: 0, focalFamilyId };
   }
 
   let minX = Infinity, maxX = -Infinity;
@@ -732,5 +733,40 @@ export function computeTreeLayout(data: GedcomData): TreeLayout {
     width: maxX - minX + padding * 2,
     height: maxY - minY + padding * 2,
     focalY,
+    focalFamilyId,
   };
+}
+
+/**
+ * Count descendants of the focal family grouped by generation.
+ * Returns an array where index 0 = children, 1 = grandchildren, etc.
+ * Each entry is the number of individuals in that generation.
+ */
+export function countDescendantsByGeneration(
+  data: GedcomData,
+  focalFamilyId: string
+): number[] {
+  const counts: number[] = [];
+  const focalFamily = data.families.get(focalFamilyId);
+  if (!focalFamily) return counts;
+
+  // BFS: each level is one generation of individuals
+  let currentGen: string[] = [...focalFamily.childIds];
+
+  while (currentGen.length > 0) {
+    counts.push(currentGen.length);
+    const nextGen: string[] = [];
+    for (const childId of currentGen) {
+      const child = data.individuals.get(childId);
+      if (!child) continue;
+      for (const famId of child.familiesAsSpouse) {
+        const fam = data.families.get(famId);
+        if (!fam) continue;
+        nextGen.push(...fam.childIds);
+      }
+    }
+    currentGen = nextGen;
+  }
+
+  return counts;
 }
