@@ -67,6 +67,8 @@ func (h *Handler) Login(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
 	}
 	if !h.deps.Auth.ValidatePassword(req.Password) {
+		log.Printf("WARNING: Failed login attempt from IP: %s", c.RealIP())
+		time.Sleep(2 * time.Second)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid password"})
 	}
 	token, err := h.deps.Auth.GenerateToken()

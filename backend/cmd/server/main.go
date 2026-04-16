@@ -108,8 +108,18 @@ func main() {
 		AppTitle:       appTitle,
 	})
 
+	// Rate limiter for login endpoint: 5 burst attempts, then 1 request per 10 seconds.
+	// Prevents brute-force password attacks by throttling per IP.
+	loginLimiter := middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
+		Store: middleware.NewRateLimiterMemoryStoreWithConfig(middleware.RateLimiterMemoryStoreConfig{
+			Rate:      0.1, // 1 request per 10 seconds
+			Burst:     5,   // allow 5 initial attempts
+			ExpiresIn: 3 * time.Minute,
+		}),
+	})
+
 	// Public
-	e.POST("/api/login", h.Login)
+	e.POST("/api/login", h.Login, loginLimiter)
 	e.GET("/api/config", h.GetConfig)
 
 	// Protected
