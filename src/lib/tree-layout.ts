@@ -8,7 +8,7 @@
  */
 import { hierarchy, tree } from "d3-hierarchy";
 import type { GedcomData, Individual, Family } from "./gedcom-parser";
-import { formatLifespan } from "./gedcom-parser";
+import { formatLifespan, extractYear } from "./gedcom-parser";
 
 // ── Public types ─────────────────────────────────────────────────
 
@@ -144,6 +144,30 @@ function findFocalFamily(data: GedcomData): string | null {
   return bestId;
 }
 
+/**
+ * Sort child IDs by birth date (ascending), with ID as tiebreaker
+ * for twins (same birth date). Children with no birth date go last.
+ */
+function sortChildIds(data: GedcomData, childIds: string[]): string[] {
+  return [...childIds].sort((a, b) => {
+    const indA = data.individuals.get(a);
+    const indB = data.individuals.get(b);
+    const yearA = indA ? extractYear(indA.birthDate) : "";
+    const yearB = indB ? extractYear(indB.birthDate) : "";
+
+    // No birth date → sort last
+    if (!yearA && !yearB) return a.localeCompare(b);
+    if (!yearA) return 1;
+    if (!yearB) return -1;
+
+    const cmp = Number(yearA) - Number(yearB);
+    if (cmp !== 0) return cmp;
+
+    // Same year (twins) → tiebreak by ID for deterministic order
+    return a.localeCompare(b);
+  });
+}
+
 // ── Descendant tree (top-down) ───────────────────────────────────
 
 /**
@@ -169,7 +193,7 @@ function buildDescendantTree(
     : undefined;
 
   const childNodes: TreeNode[] = [];
-  for (const childId of family.childIds) {
+  for (const childId of sortChildIds(data, family.childIds)) {
     const child = data.individuals.get(childId);
     if (!child) continue;
 
@@ -241,7 +265,7 @@ function buildMultiCoupleNode(
 
     // Build children for this union
     const unionChildNodes: TreeNode[] = [];
-    for (const childId of family.childIds) {
+    for (const childId of sortChildIds(data, family.childIds)) {
       const child = data.individuals.get(childId);
       if (!child) continue;
 
