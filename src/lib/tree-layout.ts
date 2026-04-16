@@ -8,7 +8,7 @@
  */
 import { hierarchy, tree } from "d3-hierarchy";
 import type { GedcomData, Individual, Family } from "./gedcom-parser";
-import { formatLifespan, extractYear } from "./gedcom-parser";
+import { formatLifespan } from "./gedcom-parser";
 
 // ── Public types ─────────────────────────────────────────────────
 
@@ -144,26 +144,78 @@ function findFocalFamily(data: GedcomData): string | null {
   return bestId;
 }
 
+/** GEDCOM month abbreviations → numeric month (1-indexed). */
+const GEDCOM_MONTHS: Record<string, number> = {
+  JAN: 1, FEB: 2, MAR: 3, APR: 4, MAY: 5, JUN: 6,
+  JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12,
+};
+
 /**
- * Sort child IDs by birth date (ascending), with ID as tiebreaker
- * for twins (same birth date). Children with no birth date go last.
+ * Parse a GEDCOM date string into a comparable numeric value.
+ * Supports formats like:
+ *   "1980"              → 198001010000
+ *   "MAR 1980"          → 198003010000
+ *   "15 MAR 1980"       → 198003150000
+ *   "15 MAR 1980 08:30" → 198003150830
+ * Returns NaN if no year can be extracted.
+ */
+function parseDateToNumber(dateStr: string): number {
+  if (!dateStr) return NaN;
+
+  const yearMatch = dateStr.match(/\d{4}/);
+  if (!yearMatch) return NaN;
+  const year = Number(yearMatch[0]);
+
+  let month = 1;
+  let day = 1;
+  let hour = 0;
+  let minute = 0;
+
+  // Extract month from 3-letter abbreviation
+  const monthMatch = dateStr.match(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\b/i);
+  if (monthMatch) {
+    month = GEDCOM_MONTHS[monthMatch[1].toUpperCase()] ?? 1;
+  }
+
+  // Extract day: 1-2 digit number that is NOT the year (not 4 digits)
+  const dayMatch = dateStr.match(/\b(\d{1,2})\b/);
+  if (dayMatch) {
+    const d = Number(dayMatch[1]);
+    if (d >= 1 && d <= 31) day = d;
+  }
+
+  // Extract time: HH:MM
+  const timeMatch = dateStr.match(/(\d{1,2}):(\d{2})/);
+  if (timeMatch) {
+    hour = Number(timeMatch[1]);
+    minute = Number(timeMatch[2]);
+  }
+
+  // YYYYMMDDHHMM → comparable number
+  return year * 100000000 + month * 1000000 + day * 10000 + hour * 100 + minute;
+}
+
+/**
+ * Sort child IDs by full birth datetime (ascending), with ID as
+ * tiebreaker for twins born at the same time. Children with no
+ * birth date go last.
  */
 function sortChildIds(data: GedcomData, childIds: string[]): string[] {
   return [...childIds].sort((a, b) => {
     const indA = data.individuals.get(a);
     const indB = data.individuals.get(b);
-    const yearA = indA ? extractYear(indA.birthDate) : "";
-    const yearB = indB ? extractYear(indB.birthDate) : "";
+    const numA = indA ? parseDateToNumber(indA.birthDate) : NaN;
+    const numB = indB ? parseDateToNumber(indB.birthDate) : NaN;
 
     // No birth date → sort last
-    if (!yearA && !yearB) return a.localeCompare(b);
-    if (!yearA) return 1;
-    if (!yearB) return -1;
+    if (isNaN(numA) && isNaN(numB)) return a.localeCompare(b);
+    if (isNaN(numA)) return 1;
+    if (isNaN(numB)) return -1;
 
-    const cmp = Number(yearA) - Number(yearB);
+    const cmp = numA - numB;
     if (cmp !== 0) return cmp;
 
-    // Same year (twins) → tiebreak by ID for deterministic order
+    // Same datetime (twins) → tiebreak by ID for deterministic order
     return a.localeCompare(b);
   });
 }
