@@ -125,7 +125,7 @@ function Controls({
     "w-8 h-8 flex items-center justify-center bg-white border border-stone-300 rounded shadow-sm hover:bg-stone-100 text-stone-700 text-lg font-bold select-none cursor-pointer";
 
   return (
-    <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 items-end">
+    <div className="absolute top-3 right-3 z-20 flex flex-col gap-1.5 items-end" data-onboarding="controls">
       <SearchPanel
         data={data}
         layout={layout}

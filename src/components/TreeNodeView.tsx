@@ -311,6 +311,7 @@ export default function TreeNodeView({
             linkedIndividualSex={node.husband?.sex || node.wife?.sex}
             familyApiId={node.family?.apiId || ""}
             existingChildApiIds={node.family ? getChildApiIds(data, node.family) : []}
+            dataOnboarding="add-button"
             onCreated={() => onDataChanged?.()}
           />
         )}

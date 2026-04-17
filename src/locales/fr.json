@@ -114,5 +114,18 @@
     "grandchildren": "Petits-enfants",
     "greatGrandchildren": "Arrière-petits-enfants",
     "nthGreatGrandchildren": "Arrière-petits-enfants ({{ordinal}}e)"
+  },
+  "onboarding": {
+    "welcomeTitle": "Bienvenue dans votre histoire",
+    "welcomeBody": "Découvrez les branches de votre arbre familial et donnez vie à vos ancêtres. Chaque clic vous rapproche un peu plus de vos racines.",
+    "skip": "Passer le tutoriel",
+    "next": "Suivant",
+    "finish": "C'est parti !",
+    "gestureTitle": "Naviguer dans l'arbre",
+    "gestureTouch": "Pincez pour zoomer et faites glisser avec deux doigts pour vous déplacer dans l'arbre.",
+    "gestureTrackpad": "Utilisez la molette ou le trackpad pour zoomer, et cliquez-glissez pour vous déplacer dans l'arbre.",
+    "step1": "Utilisez ces boutons pour zoomer, dézoomer et recentrer l'arbre. La barre de recherche vous permet de trouver une personne par son nom.",
+    "step3": "Basculez en mode édition pour modifier les informations des personnes de votre arbre.",
+    "step4": "En mode édition, appuyez sur le bouton + pour ajouter un conjoint, un enfant ou un parent."
   }
 }

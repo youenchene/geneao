@@ -114,5 +114,18 @@
     "grandchildren": "Grandchildren",
     "greatGrandchildren": "Great-grandchildren",
     "nthGreatGrandchildren": "{{ordinal}}th great-grandchildren"
+  },
+  "onboarding": {
+    "welcomeTitle": "Welcome to your story",
+    "welcomeBody": "Explore the branches of your family tree and bring your ancestors to life. Every click brings you closer to your roots.",
+    "skip": "Skip tutorial",
+    "next": "Next",
+    "finish": "Let's go!",
+    "gestureTitle": "Navigate the tree",
+    "gestureTouch": "Pinch to zoom and drag with two fingers to move around the tree.",
+    "gestureTrackpad": "Use the scroll wheel or trackpad to zoom, and click-drag to move around the tree.",
+    "step1": "Use these buttons to zoom in, zoom out, and re-center the tree. The search bar lets you find anyone by name.",
+    "step3": "Switch to edit mode to modify the information of people in your tree.",
+    "step4": "In edit mode, tap the + button to add a spouse, child, or parent."
   }
 }

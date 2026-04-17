@@ -20,6 +20,7 @@ interface Props {
   familyApiId?: string;
   existingChildApiIds?: string[];
   tooltipKey?: string;
+  dataOnboarding?: string;
   onCreated: () => void;
 }
 
@@ -32,6 +33,7 @@ export default function AddPersonButton({
   familyApiId,
   existingChildApiIds,
   tooltipKey,
+  dataOnboarding,
   onCreated,
 }: Props) {
   const { t } = useTranslation();
@@ -184,6 +186,7 @@ export default function AddPersonButton({
           setShowForm(true);
         }}
         style={{ cursor: "pointer" }}
+        {...(dataOnboarding ? { "data-onboarding": dataOnboarding } : {})}
       >
         <title>{tooltipKey ? t(tooltipKey) : type === "alliance" ? t("tooltip.addSpouse") : type === "parent" ? t("tooltip.addParent") : t("tooltip.addChild")}</title>
         <circle
