@@ -10,6 +10,7 @@ import Logo from "./components/Logo";
 import HamburgerMenu from "./components/HamburgerMenu";
 import ImportGedcomModal from "./components/ImportGedcomModal";
 import CustomViewerPage from "./pages/CustomViewerPage";
+import OnboardingOverlay from "./components/OnboardingOverlay";
 import LoginPage from "./pages/LoginPage";
 
 export default function App() {
@@ -115,6 +116,7 @@ export default function App() {
         <div className="flex-1 overflow-hidden">
           <CustomViewerPage data={data} onDataChanged={refreshData} />
         </div>
+        <OnboardingOverlay />
         {showImport && (
           <ImportGedcomModal
             onClose={() => setShowImport(false)}

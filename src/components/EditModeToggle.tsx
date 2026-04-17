@@ -11,6 +11,7 @@ export default function EditModeToggle() {
   return (
     <button
       onClick={toggleEditMode}
+      data-onboarding="edit-toggle"
       className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
         editMode
           ? "bg-amber-600 text-white hover:bg-amber-700"
