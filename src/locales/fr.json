@@ -101,7 +101,8 @@
     "expand": "Afficher les descendants ({{count}})",
     "importGedcom": "Importer un arbre depuis un fichier GEDCOM",
     "exportGedcom": "Télécharger la dernière sauvegarde GEDCOM",
-    "logout": "Se déconnecter de l'application"
+    "logout": "Se déconnecter de l'application",
+    "deletePerson": "Supprimer cette personne"
   },
   "language": {
     "label": "Langue",
@@ -127,5 +128,17 @@
     "step1": "Utilisez ces boutons pour zoomer, dézoomer et recentrer l'arbre. La barre de recherche vous permet de trouver une personne par son nom.",
     "step3": "Basculez en mode édition pour modifier les informations des personnes de votre arbre.",
     "step4": "En mode édition, appuyez sur le bouton + pour ajouter un conjoint, un enfant ou un parent."
+  },
+  "deletePerson": {
+    "title": "Supprimer une personne",
+    "confirm1Title": "Supprimer cette personne ?",
+    "confirm1Body": "Vous êtes sur le point de supprimer {{name}} de l'arbre généalogique.",
+    "confirm2Title": "Confirmer la suppression",
+    "confirm2Body": "Êtes-vous vraiment sûr de vouloir supprimer {{name}} ?",
+    "irreversible": "Cette action est irréversible.",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "deleting": "Suppression…",
+    "failed": "Échec de la suppression"
   }
 }

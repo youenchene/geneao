@@ -101,7 +101,8 @@
     "expand": "Show descendants ({{count}})",
     "importGedcom": "Import a tree from a GEDCOM file",
     "exportGedcom": "Download the latest GEDCOM backup",
-    "logout": "Log out of the application"
+    "logout": "Log out of the application",
+    "deletePerson": "Delete this person"
   },
   "language": {
     "label": "Language",
@@ -127,5 +128,17 @@
     "step1": "Use these buttons to zoom in, zoom out, and re-center the tree. The search bar lets you find anyone by name.",
     "step3": "Switch to edit mode to modify the information of people in your tree.",
     "step4": "In edit mode, tap the + button to add a spouse, child, or parent."
+  },
+  "deletePerson": {
+    "title": "Delete person",
+    "confirm1Title": "Delete this person?",
+    "confirm1Body": "You are about to delete {{name}} from the family tree.",
+    "confirm2Title": "Confirm deletion",
+    "confirm2Body": "Are you really sure you want to delete {{name}}?",
+    "irreversible": "This action is irreversible.",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleting": "Deleting…",
+    "failed": "Deletion failed"
   }
 }

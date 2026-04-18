@@ -128,6 +128,7 @@ func main() {
 	api.GET("/individuals/:id", h.GetIndividual)
 	api.POST("/individuals", h.CreateIndividual)
 	api.PUT("/individuals/:id", h.UpdateIndividual)
+	api.DELETE("/individuals/:id", h.DeleteIndividual)
 	api.POST("/individuals/:id/photo", h.UploadPhoto)
 	api.GET("/individuals/:id/photo", h.GetPhoto)
 

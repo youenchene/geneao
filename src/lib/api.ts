@@ -177,6 +177,22 @@ export function updateIndividual(id: string, data: CreateIndividualPayload): Pro
   });
 }
 
+export async function deleteIndividual(id: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/individuals/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (response.status === 401) {
+    setToken(null);
+    window.location.reload();
+    throw new Error("Unauthorized");
+  }
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: response.statusText }));
+    throw new Error(err.error || response.statusText);
+  }
+}
+
 export function uploadPhoto(id: string, file: File): Promise<{ photo_url: string; photo_key: string }> {
   const formData = new FormData();
   formData.append("photo", file);

@@ -163,6 +163,45 @@ func (h *Handler) UpdateIndividual(c echo.Context) error {
 	return c.JSON(http.StatusOK, indi)
 }
 
+// DeleteIndividual removes a childless individual.
+// Returns 409 Conflict if the person has children.
+func (h *Handler) DeleteIndividual(c echo.Context) error {
+	id := c.Param("id")
+	if !uuidRegex.MatchString(id) {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id format"})
+	}
+
+	ctx := c.Request().Context()
+
+	// Verify the individual exists
+	indi, err := h.deps.IndividualRepo.GetByID(ctx, id)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "individual not found"})
+	}
+
+	// Check if the person has children — if so, deletion is forbidden
+	hasChildren, err := h.deps.IndividualRepo.HasChildren(ctx, id)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	if hasChildren {
+		return c.JSON(http.StatusConflict, map[string]string{"error": "cannot delete a person who has children"})
+	}
+
+	cs, err := h.deps.ChangeSetRepo.Create(ctx,
+		fmt.Sprintf("Delete individual: %s %s", indi.GivenName, indi.Surname))
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if err := h.deps.IndividualRepo.Delete(ctx, id, cs.ID); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	go h.backupGedcomToS3()
+	return c.NoContent(http.StatusNoContent)
+}
+
 // UploadPhoto handles photo upload for an individual.
 func (h *Handler) UploadPhoto(c echo.Context) error {
 	id := c.Param("id")
