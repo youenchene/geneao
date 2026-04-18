@@ -48,6 +48,15 @@ function countParents(data: GedcomData, individual: Individual): number {
   return count;
 }
 
+/** Check if a person has children (is husband/wife in a family with children). */
+function hasChildren(data: GedcomData, individual: Individual): boolean {
+  for (const famId of individual.familiesAsSpouse) {
+    const family = data.families.get(famId);
+    if (family && family.childIds.length > 0) return true;
+  }
+  return false;
+}
+
 /** Get the API ID of the family where this person is a child (if any). */
 function getParentFamilyApiId(data: GedcomData, individual: Individual): string | undefined {
   const famId = individual.familyAsChild;
@@ -96,7 +105,9 @@ export default function TreeNodeView({
             <PersonCard
               individual={unions[0].spouse} x={mStartX} y={startY}
               width={CARD_W} height={CARD_H}
-              photoUrl={unions[0].spouse.photoUrl} onDataChanged={onDataChanged}
+              photoUrl={unions[0].spouse.photoUrl}
+              isDeletable={!hasChildren(data, unions[0].spouse)}
+              onDataChanged={onDataChanged}
             />
             <line x1={mStartX + CARD_W} y1={startY + CARD_H / 2}
               x2={commonX} y2={startY + CARD_H / 2} stroke="#a8a29e" strokeWidth={1.5} />
@@ -111,7 +122,9 @@ export default function TreeNodeView({
         <PersonCard
           individual={node.commonPerson} x={commonX} y={startY}
           width={CARD_W} height={CARD_H}
-          photoUrl={node.commonPerson.photoUrl} onDataChanged={onDataChanged}
+          photoUrl={node.commonPerson.photoUrl}
+          isDeletable={!hasChildren(data, node.commonPerson)}
+          onDataChanged={onDataChanged}
         />
 
         {/* Additional spouses (right of common person) */}
@@ -131,7 +144,9 @@ export default function TreeNodeView({
                   <PersonCard
                     individual={union.spouse} x={spouseX} y={startY}
                     width={CARD_W} height={CARD_H}
-                    photoUrl={union.spouse.photoUrl} onDataChanged={onDataChanged}
+                    photoUrl={union.spouse.photoUrl}
+                    isDeletable={!hasChildren(data, union.spouse)}
+                    onDataChanged={onDataChanged}
                   />
                 </>
               )}
@@ -216,7 +231,9 @@ export default function TreeNodeView({
             <PersonCard
               individual={node.husband} x={startX} y={startY}
               width={CARD_W} height={CARD_H}
-              photoUrl={node.husband.photoUrl} onDataChanged={onDataChanged}
+              photoUrl={node.husband.photoUrl}
+              isDeletable={!hasChildren(data, node.husband)}
+              onDataChanged={onDataChanged}
             />
           </>
         )}
@@ -234,7 +251,9 @@ export default function TreeNodeView({
               individual={node.wife}
               x={startX + CARD_W + COUPLE_GAP} y={startY}
               width={CARD_W} height={CARD_H}
-              photoUrl={node.wife.photoUrl} onDataChanged={onDataChanged}
+              photoUrl={node.wife.photoUrl}
+              isDeletable={!hasChildren(data, node.wife)}
+              onDataChanged={onDataChanged}
             />
           </>
         )}
@@ -361,7 +380,9 @@ export default function TreeNodeView({
         individual={node.individual!}
         x={x - CARD_W / 2} y={startY}
         width={CARD_W} height={CARD_H}
-        photoUrl={node.individual!.photoUrl} onDataChanged={onDataChanged}
+        photoUrl={node.individual!.photoUrl}
+        isDeletable={!hasChildren(data, node.individual!)}
+        onDataChanged={onDataChanged}
       />
 
       {/* Edit mode: Add parent button */}

@@ -12,6 +12,7 @@ import { getDefaultAvatar } from "../lib/avatars";
 import { useEditMode } from "../context/EditModeContext";
 import PersonEditModal from "./PersonEditModal";
 import PersonDetailModal from "./PersonDetailModal";
+import DeletePersonModal from "./DeletePersonModal";
 
 interface Props {
   individual: Individual;
@@ -20,6 +21,7 @@ interface Props {
   width: number;
   height: number;
   photoUrl?: string;
+  isDeletable?: boolean;
   onDataChanged?: () => void;
 }
 
@@ -72,6 +74,7 @@ export default function PersonCard({
   width,
   height,
   photoUrl,
+  isDeletable,
   onDataChanged,
 }: Props) {
   const { t } = useTranslation();
@@ -82,6 +85,7 @@ export default function PersonCard({
   const { editMode } = useEditMode();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Resolve photo: API photo > default avatar
   const imgSrc = photoUrl || getDefaultAvatar(individual.sex, individual.birthDate, individual.deathDate);
@@ -218,6 +222,44 @@ export default function PersonCard({
             </text>
           </g>
         )}
+
+        {/* Delete button (only in edit mode, only if deletable) */}
+        {editMode && isDeletable && (
+          <g
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDeleteModal(true);
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            <title>{t("tooltip.deletePerson")}</title>
+            <rect
+              x={x + width - 18}
+              y={y + height - 18}
+              width={16}
+              height={16}
+              rx={3}
+              fill="white"
+              stroke="#fca5a5"
+              strokeWidth={0.5}
+              opacity={0.9}
+            />
+            <svg
+              x={x + width - 16}
+              y={y + height - 16}
+              width={12}
+              height={12}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#dc2626"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+            </svg>
+          </g>
+        )}
       </g>
 
       {/* Edit modal rendered as a portal in the DOM root (outside SVG) */}
@@ -237,6 +279,20 @@ export default function PersonCard({
           <PersonDetailModal
             individual={individual}
             onClose={() => setShowDetailModal(false)}
+          />,
+          document.body
+        )}
+
+      {/* Delete confirmation modal rendered as a portal */}
+      {showDeleteModal &&
+        createPortal(
+          <DeletePersonModal
+            individual={individual}
+            onClose={() => setShowDeleteModal(false)}
+            onDeleted={() => {
+              setShowDeleteModal(false);
+              onDataChanged?.();
+            }}
           />,
           document.body
         )}

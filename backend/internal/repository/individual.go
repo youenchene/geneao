@@ -135,3 +135,95 @@ func (r *IndividualRepo) UpdatePhoto(ctx context.Context, id string, photoKey st
 	_, err := r.pool.Exec(ctx, `UPDATE individuals SET photo_key = $2, updated_at = now() WHERE id = $1`, id, photoKey)
 	return err
 }
+
+// HasChildren returns true if the individual is a husband or wife in any family
+// that has at least one child in family_children.
+func (r *IndividualRepo) HasChildren(ctx context.Context, id string) (bool, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM families f
+		JOIN family_children fc ON fc.family_id = f.id
+		WHERE f.husband_id = $1 OR f.wife_id = $1`, id).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check children for %s: %w", id, err)
+	}
+	return count > 0, nil
+}
+
+// Delete removes an individual and cleans up family references.
+// It nullifies husband_id/wife_id in families where the person is a spouse,
+// removes the person from family_children where they appear as a child,
+// deletes any families left with both husband and wife NULL,
+// and records a DELETE entry in individual_history.
+func (r *IndividualRepo) Delete(ctx context.Context, id string, changeSetID string) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Read current state for history
+	var i model.Individual
+	err = tx.QueryRow(ctx, `
+		SELECT id, COALESCE(gedcom_id, ''), given_name, surname, sex,
+		       birth_date, birth_place, death_date, death_place,
+		       living_place, note, COALESCE(photo_key, ''), created_at, updated_at
+		FROM individuals WHERE id = $1`, id).
+		Scan(&i.ID, &i.GedcomID, &i.GivenName, &i.Surname, &i.Sex,
+			&i.BirthDate, &i.BirthPlace, &i.DeathDate, &i.DeathPlace,
+			&i.LivingPlace, &i.Note, &i.PhotoKey, &i.CreatedAt, &i.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("read individual %s for delete: %w", id, err)
+	}
+
+	// Record DELETE history
+	_, err = tx.Exec(ctx, `
+		INSERT INTO individual_history
+			(change_set_id, individual_id, operation, given_name, surname, sex, birth_date, birth_place, death_date, death_place, living_place, note, photo_key)
+		VALUES ($1, $2, 'DELETE', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		changeSetID, i.ID, i.GivenName, i.Surname, i.Sex,
+		i.BirthDate, i.BirthPlace, i.DeathDate, i.DeathPlace, i.LivingPlace, i.Note, i.PhotoKey)
+	if err != nil {
+		return fmt.Errorf("record delete history: %w", err)
+	}
+
+	// Nullify husband_id where this person is husband
+	_, err = tx.Exec(ctx, `UPDATE families SET husband_id = NULL, updated_at = now() WHERE husband_id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("nullify husband: %w", err)
+	}
+
+	// Nullify wife_id where this person is wife
+	_, err = tx.Exec(ctx, `UPDATE families SET wife_id = NULL, updated_at = now() WHERE wife_id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("nullify wife: %w", err)
+	}
+
+	// Remove from family_children where this person is a child
+	_, err = tx.Exec(ctx, `DELETE FROM family_children WHERE child_id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("remove from family_children: %w", err)
+	}
+
+	// Delete childless families that lost a spouse due to this deletion
+	// (families with no children and at most one spouse remaining are meaningless)
+	_, err = tx.Exec(ctx, `
+		DELETE FROM families
+		WHERE id NOT IN (SELECT DISTINCT family_id FROM family_children)
+		AND (husband_id IS NULL OR wife_id IS NULL)`)
+	if err != nil {
+		return fmt.Errorf("delete orphaned families: %w", err)
+	}
+
+	// Delete the individual
+	_, err = tx.Exec(ctx, `DELETE FROM individuals WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete individual %s: %w", id, err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
