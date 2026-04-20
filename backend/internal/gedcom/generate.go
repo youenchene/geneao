@@ -49,6 +49,15 @@ func Generate(individuals []model.Individual, families []model.Family) string {
 		b.WriteString(fmt.Sprintf("1 NAME %s /%s/\n", indi.GivenName, indi.Surname))
 		b.WriteString(fmt.Sprintf("2 GIVN %s\n", indi.GivenName))
 		b.WriteString(fmt.Sprintf("2 SURN %s\n", indi.Surname))
+		if indi.NamePrefix != "" {
+			b.WriteString(fmt.Sprintf("2 NPFX %s\n", indi.NamePrefix))
+		}
+		if indi.NameSuffix != "" {
+			b.WriteString(fmt.Sprintf("2 NSFX %s\n", indi.NameSuffix))
+		}
+		if indi.Nickname != "" {
+			b.WriteString(fmt.Sprintf("2 NICK %s\n", indi.Nickname))
+		}
 		if indi.Sex != "" {
 			b.WriteString(fmt.Sprintf("1 SEX %s\n", indi.Sex))
 		}
@@ -70,9 +79,38 @@ func Generate(individuals []model.Individual, families []model.Family) string {
 				b.WriteString(fmt.Sprintf("2 PLAC %s\n", indi.DeathPlace))
 			}
 		}
-		if indi.LivingPlace != "" {
+		if indi.BurialDate != "" || indi.BurialPlace != "" {
+			b.WriteString("1 BURI\n")
+			if indi.BurialDate != "" {
+				b.WriteString(fmt.Sprintf("2 DATE %s\n", indi.BurialDate))
+			}
+			if indi.BurialPlace != "" {
+				b.WriteString(fmt.Sprintf("2 PLAC %s\n", indi.BurialPlace))
+			}
+		}
+		if indi.LivingCity != "" || indi.LivingCountry != "" {
 			b.WriteString("1 RESI\n")
-			b.WriteString(fmt.Sprintf("2 PLAC %s\n", indi.LivingPlace))
+			// Join "City, Country" following the GEDCOM PLAC convention
+			// (most specific first, most general last, comma-separated).
+			var place string
+			switch {
+			case indi.LivingCity != "" && indi.LivingCountry != "":
+				place = indi.LivingCity + ", " + indi.LivingCountry
+			case indi.LivingCity != "":
+				place = indi.LivingCity
+			default:
+				place = indi.LivingCountry
+			}
+			b.WriteString(fmt.Sprintf("2 PLAC %s\n", place))
+		}
+		if indi.Occupation != "" {
+			b.WriteString(fmt.Sprintf("1 OCCU %s\n", indi.Occupation))
+		}
+		if indi.Email != "" {
+			b.WriteString(fmt.Sprintf("1 EMAIL %s\n", indi.Email))
+		}
+		if indi.Phone != "" {
+			b.WriteString(fmt.Sprintf("1 PHON %s\n", indi.Phone))
 		}
 		if indi.Note != "" {
 			b.WriteString(fmt.Sprintf("1 NOTE %s\n", indi.Note))

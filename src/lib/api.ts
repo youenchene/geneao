@@ -99,12 +99,21 @@ export interface ApiIndividual {
   gedcom_id: string;
   given_name: string;
   surname: string;
+  name_prefix: string;
+  name_suffix: string;
+  nickname: string;
   sex: "M" | "F" | "U";
   birth_date: string;
   birth_place: string;
   death_date: string;
   death_place: string;
-  living_place: string;
+  burial_date: string;
+  burial_place: string;
+  living_city: string;
+  living_country: string;
+  occupation: string;
+  email: string;
+  phone: string;
   note: string;
   photo_key: string;
   photo_url: string;
@@ -134,12 +143,21 @@ export interface TreeData {
 export interface CreateIndividualPayload {
   given_name: string;
   surname: string;
+  name_prefix?: string;
+  name_suffix?: string;
+  nickname?: string;
   sex: "M" | "F" | "U";
   birth_date?: string;
   birth_place?: string;
   death_date?: string;
   death_place?: string;
-  living_place?: string;
+  burial_date?: string;
+  burial_place?: string;
+  living_city?: string;
+  living_country?: string;
+  occupation?: string;
+  email?: string;
+  phone?: string;
   note?: string;
 }
 

@@ -47,16 +47,35 @@ func parseLines(text string) []gedLine {
 
 // parsedIndi holds parsed individual data with GEDCOM xref.
 type parsedIndi struct {
-	Xref        string
-	GivenName   string
-	Surname     string
-	Sex         string
-	BirthDate   string
-	BirthPlace  string
-	DeathDate   string
-	DeathPlace  string
-	LivingPlace string
-	Note        string
+	Xref          string
+	GivenName     string
+	Surname       string
+	NamePrefix    string
+	NameSuffix    string
+	Nickname      string
+	Sex           string
+	BirthDate     string
+	BirthPlace    string
+	DeathDate     string
+	DeathPlace    string
+	BurialDate    string
+	BurialPlace   string
+	LivingCity    string
+	LivingCountry string
+	Occupation    string
+	Email         string
+	Phone         string
+	Note          string
+}
+
+// splitPlace splits a GEDCOM PLAC value like "City, Country" on the first comma
+// into (city, country). Values with no comma go entirely into the city part.
+func splitPlace(plac string) (city, country string) {
+	idx := strings.Index(plac, ",")
+	if idx < 0 {
+		return strings.TrimSpace(plac), ""
+	}
+	return strings.TrimSpace(plac[:idx]), strings.TrimSpace(plac[idx+1:])
 }
 
 // parsedFam holds parsed family data with GEDCOM xrefs.
@@ -104,27 +123,50 @@ func ParseText(text string) ([]parsedIndi, []parsedFam) {
 					indi.GivenName = sl.Value
 				case sl.Level == 2 && sl.Tag == "SURN":
 					indi.Surname = sl.Value
+				case sl.Level == 2 && sl.Tag == "NPFX":
+					indi.NamePrefix = sl.Value
+				case sl.Level == 2 && sl.Tag == "NSFX":
+					indi.NameSuffix = sl.Value
+				case sl.Level == 2 && sl.Tag == "NICK":
+					indi.Nickname = sl.Value
 				case sl.Level == 1 && sl.Tag == "SEX":
 					indi.Sex = sl.Value
 				case sl.Level == 1 && sl.Tag == "BIRT":
 					currentEvent = "BIRT"
 				case sl.Level == 1 && sl.Tag == "DEAT":
 					currentEvent = "DEAT"
+				case sl.Level == 1 && sl.Tag == "BURI":
+					currentEvent = "BURI"
 				case sl.Level == 1 && sl.Tag == "RESI":
 					currentEvent = "RESI"
+				case sl.Level == 1 && sl.Tag == "OCCU":
+					indi.Occupation = sl.Value
+					currentEvent = ""
+				case sl.Level == 1 && sl.Tag == "EMAIL":
+					indi.Email = sl.Value
+					currentEvent = ""
+				case sl.Level == 1 && sl.Tag == "PHON":
+					indi.Phone = sl.Value
+					currentEvent = ""
 				case sl.Level == 2 && sl.Tag == "DATE":
-					if currentEvent == "BIRT" {
+					switch currentEvent {
+					case "BIRT":
 						indi.BirthDate = sl.Value
-					} else if currentEvent == "DEAT" {
+					case "DEAT":
 						indi.DeathDate = sl.Value
+					case "BURI":
+						indi.BurialDate = sl.Value
 					}
 				case sl.Level == 2 && sl.Tag == "PLAC":
-					if currentEvent == "BIRT" {
+					switch currentEvent {
+					case "BIRT":
 						indi.BirthPlace = sl.Value
-					} else if currentEvent == "DEAT" {
+					case "DEAT":
 						indi.DeathPlace = sl.Value
-					} else if currentEvent == "RESI" {
-						indi.LivingPlace = sl.Value
+					case "BURI":
+						indi.BurialPlace = sl.Value
+					case "RESI":
+						indi.LivingCity, indi.LivingCountry = splitPlace(sl.Value)
 					}
 				case sl.Level == 1 && sl.Tag == "NOTE":
 					indi.Note = sl.Value
@@ -202,15 +244,24 @@ func ImportIntoDB(
 	// 1. Create all individuals
 	for _, pi := range parsedIndis {
 		req := model.CreateIndividualRequest{
-			GivenName:   pi.GivenName,
-			Surname:     pi.Surname,
-			Sex:         pi.Sex,
-			BirthDate:   pi.BirthDate,
-			BirthPlace:  pi.BirthPlace,
-			DeathDate:   pi.DeathDate,
-			DeathPlace:  pi.DeathPlace,
-			LivingPlace: pi.LivingPlace,
-			Note:        pi.Note,
+			GivenName:     pi.GivenName,
+			Surname:       pi.Surname,
+			NamePrefix:    pi.NamePrefix,
+			NameSuffix:    pi.NameSuffix,
+			Nickname:      pi.Nickname,
+			Sex:           pi.Sex,
+			BirthDate:     pi.BirthDate,
+			BirthPlace:    pi.BirthPlace,
+			DeathDate:     pi.DeathDate,
+			DeathPlace:    pi.DeathPlace,
+			BurialDate:    pi.BurialDate,
+			BurialPlace:   pi.BurialPlace,
+			LivingCity:    pi.LivingCity,
+			LivingCountry: pi.LivingCountry,
+			Occupation:    pi.Occupation,
+			Email:         pi.Email,
+			Phone:         pi.Phone,
+			Note:          pi.Note,
 		}
 		indi, err := individualRepo.Create(ctx, req, cs.ID)
 		if err != nil {
