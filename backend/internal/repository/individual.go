@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/youenchene/geneao/backend/internal/model"
 )
@@ -19,12 +20,56 @@ func NewIndividualRepo(pool *pgxpool.Pool) *IndividualRepo {
 	return &IndividualRepo{pool: pool}
 }
 
+// selectColumns lists every column returned by SELECT/RETURNING queries.
+// Kept as a constant to stay in sync across List/GetByID/Create/Update/Delete.
+const selectColumns = `id, COALESCE(gedcom_id, ''), given_name, surname,
+		       name_prefix, name_suffix, nickname, sex,
+		       birth_date, birth_place, death_date, death_place,
+		       burial_date, burial_place, living_city, living_country,
+		       occupation, email, phone,
+		       note, COALESCE(photo_key, ''), created_at, updated_at`
+
+// historyInsertSQL is the shared INSERT for individual_history snapshots.
+const historyInsertSQL = `
+	INSERT INTO individual_history
+		(change_set_id, individual_id, operation,
+		 given_name, surname, name_prefix, name_suffix, nickname, sex,
+		 birth_date, birth_place, death_date, death_place,
+		 burial_date, burial_place, living_city, living_country,
+		 occupation, email, phone,
+		 note, photo_key)
+	VALUES ($1, $2, $3,
+	        $4, $5, $6, $7, $8, $9,
+	        $10, $11, $12, $13,
+	        $14, $15, $16, $17,
+	        $18, $19, $20,
+	        $21, $22)`
+
+// scanIndividual scans a pgx.Row into an Individual. Column order must match selectColumns.
+func scanIndividual(row pgx.Row, i *model.Individual) error {
+	return row.Scan(&i.ID, &i.GedcomID, &i.GivenName, &i.Surname,
+		&i.NamePrefix, &i.NameSuffix, &i.Nickname, &i.Sex,
+		&i.BirthDate, &i.BirthPlace, &i.DeathDate, &i.DeathPlace,
+		&i.BurialDate, &i.BurialPlace, &i.LivingCity, &i.LivingCountry,
+		&i.Occupation, &i.Email, &i.Phone,
+		&i.Note, &i.PhotoKey, &i.CreatedAt, &i.UpdatedAt)
+}
+
+// historyArgs returns the positional args for historyInsertSQL.
+func historyArgs(changeSetID string, i *model.Individual, operation string) []any {
+	return []any{
+		changeSetID, i.ID, operation,
+		i.GivenName, i.Surname, i.NamePrefix, i.NameSuffix, i.Nickname, i.Sex,
+		i.BirthDate, i.BirthPlace, i.DeathDate, i.DeathPlace,
+		i.BurialDate, i.BurialPlace, i.LivingCity, i.LivingCountry,
+		i.Occupation, i.Email, i.Phone,
+		i.Note, i.PhotoKey,
+	}
+}
+
 // List returns all individuals.
 func (r *IndividualRepo) List(ctx context.Context) ([]model.Individual, error) {
-	rows, err := r.pool.Query(ctx, `
-		SELECT id, COALESCE(gedcom_id, ''), given_name, surname, sex,
-		       birth_date, birth_place, death_date, death_place,
-		       living_place, note, COALESCE(photo_key, ''), created_at, updated_at
+	rows, err := r.pool.Query(ctx, `SELECT `+selectColumns+`
 		FROM individuals ORDER BY surname, given_name`)
 	if err != nil {
 		return nil, fmt.Errorf("list individuals: %w", err)
@@ -34,9 +79,7 @@ func (r *IndividualRepo) List(ctx context.Context) ([]model.Individual, error) {
 	var result []model.Individual
 	for rows.Next() {
 		var i model.Individual
-		if err := rows.Scan(&i.ID, &i.GedcomID, &i.GivenName, &i.Surname, &i.Sex,
-			&i.BirthDate, &i.BirthPlace, &i.DeathDate, &i.DeathPlace,
-			&i.LivingPlace, &i.Note, &i.PhotoKey, &i.CreatedAt, &i.UpdatedAt); err != nil {
+		if err := scanIndividual(rows, &i); err != nil {
 			return nil, fmt.Errorf("scan individual: %w", err)
 		}
 		result = append(result, i)
@@ -47,14 +90,10 @@ func (r *IndividualRepo) List(ctx context.Context) ([]model.Individual, error) {
 // GetByID returns a single individual by UUID.
 func (r *IndividualRepo) GetByID(ctx context.Context, id string) (*model.Individual, error) {
 	var i model.Individual
-	err := r.pool.QueryRow(ctx, `
-		SELECT id, COALESCE(gedcom_id, ''), given_name, surname, sex,
-		       birth_date, birth_place, death_date, death_place,
-		       living_place, note, COALESCE(photo_key, ''), created_at, updated_at
-		FROM individuals WHERE id = $1`, id).
-		Scan(&i.ID, &i.GedcomID, &i.GivenName, &i.Surname, &i.Sex,
-			&i.BirthDate, &i.BirthPlace, &i.DeathDate, &i.DeathPlace,
-			&i.LivingPlace, &i.Note, &i.PhotoKey, &i.CreatedAt, &i.UpdatedAt)
+	err := scanIndividual(
+		r.pool.QueryRow(ctx, `SELECT `+selectColumns+` FROM individuals WHERE id = $1`, id),
+		&i,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("get individual %s: %w", id, err)
 	}
@@ -64,29 +103,29 @@ func (r *IndividualRepo) GetByID(ctx context.Context, id string) (*model.Individ
 // Create inserts a new individual and records history.
 func (r *IndividualRepo) Create(ctx context.Context, req model.CreateIndividualRequest, changeSetID string) (*model.Individual, error) {
 	var i model.Individual
-	err := r.pool.QueryRow(ctx, `
-		INSERT INTO individuals (given_name, surname, sex, birth_date, birth_place, death_date, death_place, living_place, note)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		RETURNING id, COALESCE(gedcom_id, ''), given_name, surname, sex,
-		          birth_date, birth_place, death_date, death_place,
-		          living_place, note, COALESCE(photo_key, ''), created_at, updated_at`,
-		req.GivenName, req.Surname, req.Sex, req.BirthDate, req.BirthPlace,
-		req.DeathDate, req.DeathPlace, req.LivingPlace, req.Note).
-		Scan(&i.ID, &i.GedcomID, &i.GivenName, &i.Surname, &i.Sex,
-			&i.BirthDate, &i.BirthPlace, &i.DeathDate, &i.DeathPlace,
-			&i.LivingPlace, &i.Note, &i.PhotoKey, &i.CreatedAt, &i.UpdatedAt)
+	err := scanIndividual(
+		r.pool.QueryRow(ctx, `
+		INSERT INTO individuals (
+			given_name, surname, name_prefix, name_suffix, nickname, sex,
+			birth_date, birth_place, death_date, death_place,
+			burial_date, burial_place, living_city, living_country,
+			occupation, email, phone, note)
+		VALUES ($1, $2, $3, $4, $5, $6,
+		        $7, $8, $9, $10,
+		        $11, $12, $13, $14,
+		        $15, $16, $17, $18)
+		RETURNING `+selectColumns,
+			req.GivenName, req.Surname, req.NamePrefix, req.NameSuffix, req.Nickname, req.Sex,
+			req.BirthDate, req.BirthPlace, req.DeathDate, req.DeathPlace,
+			req.BurialDate, req.BurialPlace, req.LivingCity, req.LivingCountry,
+			req.Occupation, req.Email, req.Phone, req.Note),
+		&i,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create individual: %w", err)
 	}
 
-	// Record history
-	_, err = r.pool.Exec(ctx, `
-		INSERT INTO individual_history
-			(change_set_id, individual_id, operation, given_name, surname, sex, birth_date, birth_place, death_date, death_place, living_place, note, photo_key)
-		VALUES ($1, $2, 'INSERT', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-		changeSetID, i.ID, i.GivenName, i.Surname, i.Sex,
-		i.BirthDate, i.BirthPlace, i.DeathDate, i.DeathPlace, i.LivingPlace, i.Note, i.PhotoKey)
-	if err != nil {
+	if _, err := r.pool.Exec(ctx, historyInsertSQL, historyArgs(changeSetID, &i, "INSERT")...); err != nil {
 		return nil, fmt.Errorf("record individual history: %w", err)
 	}
 
@@ -96,34 +135,38 @@ func (r *IndividualRepo) Create(ctx context.Context, req model.CreateIndividualR
 // Update modifies an existing individual and records history.
 func (r *IndividualRepo) Update(ctx context.Context, id string, req model.CreateIndividualRequest, changeSetID string) (*model.Individual, error) {
 	var i model.Individual
-	err := r.pool.QueryRow(ctx, `
+	err := scanIndividual(
+		r.pool.QueryRow(ctx, `
 		UPDATE individuals
-		SET given_name = $2, surname = $3, sex = $4,
-		    birth_date = $5, birth_place = $6,
-		    death_date = $7, death_place = $8,
-		    living_place = $9, note = $10,
+		SET given_name = $2, surname = $3,
+		    name_prefix = $4, name_suffix = $5, nickname = $6,
+		    sex = $7,
+		    birth_date = $8, birth_place = $9,
+		    death_date = $10, death_place = $11,
+		    burial_date = $12, burial_place = $13,
+		    living_city = $14, living_country = $15,
+		    occupation = $16, email = $17, phone = $18,
+		    note = $19,
 		    updated_at = now()
 		WHERE id = $1
-		RETURNING id, COALESCE(gedcom_id, ''), given_name, surname, sex,
-		          birth_date, birth_place, death_date, death_place,
-		          living_place, note, COALESCE(photo_key, ''), created_at, updated_at`,
-		id, req.GivenName, req.Surname, req.Sex,
-		req.BirthDate, req.BirthPlace, req.DeathDate, req.DeathPlace,
-		req.LivingPlace, req.Note).
-		Scan(&i.ID, &i.GedcomID, &i.GivenName, &i.Surname, &i.Sex,
-			&i.BirthDate, &i.BirthPlace, &i.DeathDate, &i.DeathPlace,
-			&i.LivingPlace, &i.Note, &i.PhotoKey, &i.CreatedAt, &i.UpdatedAt)
+		RETURNING `+selectColumns,
+			id,
+			req.GivenName, req.Surname,
+			req.NamePrefix, req.NameSuffix, req.Nickname,
+			req.Sex,
+			req.BirthDate, req.BirthPlace,
+			req.DeathDate, req.DeathPlace,
+			req.BurialDate, req.BurialPlace,
+			req.LivingCity, req.LivingCountry,
+			req.Occupation, req.Email, req.Phone,
+			req.Note),
+		&i,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("update individual %s: %w", id, err)
 	}
 
-	_, err = r.pool.Exec(ctx, `
-		INSERT INTO individual_history
-			(change_set_id, individual_id, operation, given_name, surname, sex, birth_date, birth_place, death_date, death_place, living_place, note, photo_key)
-		VALUES ($1, $2, 'UPDATE', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-		changeSetID, i.ID, i.GivenName, i.Surname, i.Sex,
-		i.BirthDate, i.BirthPlace, i.DeathDate, i.DeathPlace, i.LivingPlace, i.Note, i.PhotoKey)
-	if err != nil {
+	if _, err := r.pool.Exec(ctx, historyInsertSQL, historyArgs(changeSetID, &i, "UPDATE")...); err != nil {
 		return nil, fmt.Errorf("record individual history: %w", err)
 	}
 
@@ -165,60 +208,44 @@ func (r *IndividualRepo) Delete(ctx context.Context, id string, changeSetID stri
 
 	// Read current state for history
 	var i model.Individual
-	err = tx.QueryRow(ctx, `
-		SELECT id, COALESCE(gedcom_id, ''), given_name, surname, sex,
-		       birth_date, birth_place, death_date, death_place,
-		       living_place, note, COALESCE(photo_key, ''), created_at, updated_at
-		FROM individuals WHERE id = $1`, id).
-		Scan(&i.ID, &i.GedcomID, &i.GivenName, &i.Surname, &i.Sex,
-			&i.BirthDate, &i.BirthPlace, &i.DeathDate, &i.DeathPlace,
-			&i.LivingPlace, &i.Note, &i.PhotoKey, &i.CreatedAt, &i.UpdatedAt)
-	if err != nil {
+	if err := scanIndividual(
+		tx.QueryRow(ctx, `SELECT `+selectColumns+` FROM individuals WHERE id = $1`, id),
+		&i,
+	); err != nil {
 		return fmt.Errorf("read individual %s for delete: %w", id, err)
 	}
 
 	// Record DELETE history
-	_, err = tx.Exec(ctx, `
-		INSERT INTO individual_history
-			(change_set_id, individual_id, operation, given_name, surname, sex, birth_date, birth_place, death_date, death_place, living_place, note, photo_key)
-		VALUES ($1, $2, 'DELETE', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-		changeSetID, i.ID, i.GivenName, i.Surname, i.Sex,
-		i.BirthDate, i.BirthPlace, i.DeathDate, i.DeathPlace, i.LivingPlace, i.Note, i.PhotoKey)
-	if err != nil {
+	if _, err := tx.Exec(ctx, historyInsertSQL, historyArgs(changeSetID, &i, "DELETE")...); err != nil {
 		return fmt.Errorf("record delete history: %w", err)
 	}
 
 	// Nullify husband_id where this person is husband
-	_, err = tx.Exec(ctx, `UPDATE families SET husband_id = NULL, updated_at = now() WHERE husband_id = $1`, id)
-	if err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE families SET husband_id = NULL, updated_at = now() WHERE husband_id = $1`, id); err != nil {
 		return fmt.Errorf("nullify husband: %w", err)
 	}
 
 	// Nullify wife_id where this person is wife
-	_, err = tx.Exec(ctx, `UPDATE families SET wife_id = NULL, updated_at = now() WHERE wife_id = $1`, id)
-	if err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE families SET wife_id = NULL, updated_at = now() WHERE wife_id = $1`, id); err != nil {
 		return fmt.Errorf("nullify wife: %w", err)
 	}
 
 	// Remove from family_children where this person is a child
-	_, err = tx.Exec(ctx, `DELETE FROM family_children WHERE child_id = $1`, id)
-	if err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM family_children WHERE child_id = $1`, id); err != nil {
 		return fmt.Errorf("remove from family_children: %w", err)
 	}
 
 	// Delete childless families that lost a spouse due to this deletion
 	// (families with no children and at most one spouse remaining are meaningless)
-	_, err = tx.Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		DELETE FROM families
 		WHERE id NOT IN (SELECT DISTINCT family_id FROM family_children)
-		AND (husband_id IS NULL OR wife_id IS NULL)`)
-	if err != nil {
+		AND (husband_id IS NULL OR wife_id IS NULL)`); err != nil {
 		return fmt.Errorf("delete orphaned families: %w", err)
 	}
 
 	// Delete the individual
-	_, err = tx.Exec(ctx, `DELETE FROM individuals WHERE id = $1`, id)
-	if err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM individuals WHERE id = $1`, id); err != nil {
 		return fmt.Errorf("delete individual %s: %w", id, err)
 	}
 

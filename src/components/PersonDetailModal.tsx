@@ -23,22 +23,60 @@ function detailRow(label: string, value: string): React.ReactNode | null {
   );
 }
 
+/**
+ * Format a clickable detail row (mailto/tel link), returning null when value is empty.
+ */
+function linkRow(label: string, value: string, href: string): React.ReactNode | null {
+  if (!value) return null;
+  return (
+    <div className="flex flex-col">
+      <span className="text-xs font-medium text-stone-400 uppercase tracking-wide">{label}</span>
+      <a
+        href={href}
+        className="text-sm text-amber-700 hover:text-amber-800 underline break-all"
+      >
+        {value}
+      </a>
+    </div>
+  );
+}
+
+/** Join city + country as "City, Country", or whichever is present. */
+function joinResidence(city: string, country: string): string {
+  if (city && country) return `${city}, ${country}`;
+  return city || country;
+}
+
+/**
+ * Build a display name that includes prefix, nickname (quoted), and suffix when present.
+ * Falls back to "GivenName Surname" or "?" if everything is empty.
+ */
+function buildFullName(individual: Individual): string {
+  const parts: string[] = [];
+  if (individual.namePrefix) parts.push(individual.namePrefix);
+  if (individual.givenName) parts.push(individual.givenName);
+  if (individual.nickname) parts.push(`"${individual.nickname}"`);
+  if (individual.surname) parts.push(individual.surname);
+  if (individual.nameSuffix) parts.push(individual.nameSuffix);
+  return parts.length > 0 ? parts.join(" ") : "?";
+}
+
 export default function PersonDetailModal({ individual, onClose }: Props) {
   const { t } = useTranslation();
 
-  const fullName = [individual.givenName, individual.surname].filter(Boolean).join(" ") || "?";
+  const fullName = buildFullName(individual);
   const lifespan = formatLifespan(individual);
   const imgSrc = individual.photoUrl || getDefaultAvatar(individual.sex, individual.birthDate, individual.deathDate);
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={onClose}
       role="dialog"
       aria-label={t("personDetail.title")}
     >
       <div
-        className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm"
+        className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header: photo + name */}
@@ -56,11 +94,19 @@ export default function PersonDetailModal({ individual, onClose }: Props) {
 
         {/* Detail rows */}
         <div className="space-y-3">
+          {detailRow(t("personDetail.occupation"), individual.occupation)}
           {detailRow(t("personDetail.birthDate"), individual.birthDate)}
           {detailRow(t("personDetail.birthPlace"), individual.birthPlace)}
           {detailRow(t("personDetail.deathDate"), individual.deathDate)}
           {detailRow(t("personDetail.deathPlace"), individual.deathPlace)}
-          {detailRow(t("personDetail.livingPlace"), individual.livingPlace)}
+          {detailRow(t("personDetail.burialDate"), individual.burialDate)}
+          {detailRow(t("personDetail.burialPlace"), individual.burialPlace)}
+          {detailRow(
+            t("personDetail.livingPlace"),
+            joinResidence(individual.livingCity, individual.livingCountry)
+          )}
+          {linkRow(t("personDetail.email"), individual.email, `mailto:${individual.email}`)}
+          {linkRow(t("personDetail.phone"), individual.phone, `tel:${individual.phone}`)}
           {detailRow(t("personDetail.note"), individual.note)}
         </div>
 

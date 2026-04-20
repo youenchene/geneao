@@ -12,12 +12,21 @@ export interface Individual {
   displayName: string;
   givenName: string;
   surname: string;
+  namePrefix: string; // GEDCOM NAME/NPFX (e.g. "Dr.", "Rev.")
+  nameSuffix: string; // GEDCOM NAME/NSFX (e.g. "Jr.", "III")
+  nickname: string;   // GEDCOM NAME/NICK
   sex: "M" | "F" | "U";
   birthDate: string;
   birthPlace: string;
   deathDate: string;
   deathPlace: string;
-  livingPlace: string;
+  burialDate: string;    // GEDCOM BURI/DATE
+  burialPlace: string;   // GEDCOM BURI/PLAC
+  livingCity: string;    // GEDCOM RESI/PLAC (city part)
+  livingCountry: string; // GEDCOM RESI/PLAC (country part)
+  occupation: string;    // GEDCOM OCCU
+  email: string;         // GEDCOM EMAIL
+  phone: string;         // GEDCOM PHON
   note: string;
   photoUrl?: string; // Presigned S3 URL (populated from /api/tree)
   familiesAsSpouse: string[]; // FAM xref_ids where this person is a spouse
@@ -40,6 +49,20 @@ export interface GedcomData {
   individuals: Map<string, Individual>;
   families: Map<string, Family>;
   raw: string; // original GEDCOM text for family-tree-viewer
+}
+
+/**
+ * Split a GEDCOM PLAC value like "City, Country" on the first comma.
+ * No comma → everything goes into city.
+ */
+function splitResidence(plac: string): { livingCity: string; livingCountry: string } {
+  if (!plac) return { livingCity: "", livingCountry: "" };
+  const idx = plac.indexOf(",");
+  if (idx < 0) return { livingCity: plac.trim(), livingCountry: "" };
+  return {
+    livingCity: plac.slice(0, idx).trim(),
+    livingCountry: plac.slice(idx + 1).trim(),
+  };
 }
 
 function collectValues(data: Record<string, unknown>, key: string): string[] {
@@ -74,12 +97,20 @@ export function parseGedcom(text: string): GedcomData {
         displayName: (d["NAME/DISPLAY"] as string) || (d["NAME/GIVEN_NAME"] as string) || "",
         givenName: (d["NAME/GIVEN_NAME"] as string) || "",
         surname: (d["NAME/SURNAME"] as string) || "",
+        namePrefix: (d["NAME/NAME_PREFIX"] as string) || (d["NAME/NPFX"] as string) || "",
+        nameSuffix: (d["NAME/NAME_SUFFIX"] as string) || (d["NAME/NSFX"] as string) || "",
+        nickname: (d["NAME/NICKNAME"] as string) || (d["NAME/NICK"] as string) || "",
         sex: ((d["SEX"] as string) === "F" ? "F" : (d["SEX"] as string) === "M" ? "M" : "U"),
         birthDate: (d["BIRTH/DATE"] as string) || "",
         birthPlace: (d["BIRTH/PLACE"] as string) || "",
         deathDate: (d["DEATH/DATE"] as string) || "",
         deathPlace: (d["DEATH/PLACE"] as string) || "",
-        livingPlace: (d["RESIDENCE/PLACE"] as string) || "",
+        burialDate: (d["BURIAL/DATE"] as string) || "",
+        burialPlace: (d["BURIAL/PLACE"] as string) || "",
+        ...splitResidence((d["RESIDENCE/PLACE"] as string) || ""),
+        occupation: (d["OCCUPATION"] as string) || "",
+        email: (d["EMAIL"] as string) || "",
+        phone: (d["PHONE"] as string) || (d["PHON"] as string) || "",
         note: (d["NOTE"] as string) || "",
         familiesAsSpouse: famsRefs,
         familyAsChild: famcRefs[0] || null,
@@ -178,12 +209,21 @@ export function buildFromApiData(tree: {
     gedcom_id: string;
     given_name: string;
     surname: string;
+    name_prefix?: string;
+    name_suffix?: string;
+    nickname?: string;
     sex: "M" | "F" | "U";
     birth_date: string;
     birth_place: string;
     death_date: string;
     death_place: string;
-    living_place: string;
+    burial_date?: string;
+    burial_place?: string;
+    living_city?: string;
+    living_country?: string;
+    occupation?: string;
+    email?: string;
+    phone?: string;
     note: string;
     photo_url: string;
   }>;
@@ -214,12 +254,21 @@ export function buildFromApiData(tree: {
       displayName: api.given_name,
       givenName: api.given_name,
       surname: api.surname,
+      namePrefix: api.name_prefix ?? "",
+      nameSuffix: api.name_suffix ?? "",
+      nickname: api.nickname ?? "",
       sex: api.sex === "F" ? "F" : api.sex === "M" ? "M" : "U",
       birthDate: api.birth_date,
       birthPlace: api.birth_place,
       deathDate: api.death_date,
       deathPlace: api.death_place,
-      livingPlace: api.living_place,
+      burialDate: api.burial_date ?? "",
+      burialPlace: api.burial_place ?? "",
+      livingCity: api.living_city ?? "",
+      livingCountry: api.living_country ?? "",
+      occupation: api.occupation ?? "",
+      email: api.email ?? "",
+      phone: api.phone ?? "",
       note: api.note,
       photoUrl: api.photo_url || undefined,
       familiesAsSpouse: [],
