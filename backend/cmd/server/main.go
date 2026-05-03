@@ -131,6 +131,7 @@ func main() {
 	api.DELETE("/individuals/:id", h.DeleteIndividual)
 	api.POST("/individuals/:id/photo", h.UploadPhoto)
 	api.GET("/individuals/:id/photo", h.GetPhoto)
+	api.DELETE("/individuals/:id/photo", h.DeletePhoto)
 
 	api.GET("/families", h.ListFamilies)
 	api.GET("/families/:id", h.GetFamily)
