@@ -5,7 +5,7 @@
 import { useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { Individual } from "../lib/gedcom-parser";
-import { updateIndividual, uploadPhoto, type CreateIndividualPayload } from "../lib/api";
+import { updateIndividual, uploadPhoto, deletePhoto, type CreateIndividualPayload } from "../lib/api";
 
 interface Props {
   individual: Individual;
@@ -45,8 +45,28 @@ export default function PersonEditModal({ individual, onClose, onSaved }: Props)
   );
   const [showMore, setShowMore] = useState(hasExtraData);
   const [saving, setSaving] = useState(false);
+  const [removingPhoto, setRemovingPhoto] = useState(false);
+  const [hasPhoto, setHasPhoto] = useState(!!individual.photoUrl);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleRemovePhoto() {
+    if (!window.confirm(t("editPerson.removePhotoConfirm"))) return;
+    setRemovingPhoto(true);
+    setError("");
+    try {
+      await deletePhoto(individual.id);
+      setHasPhoto(false);
+      // Reset the file input so any previously selected file is cleared.
+      if (fileRef.current) fileRef.current.value = "";
+      // Refresh parent so the tree reflects the change immediately.
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t("editPerson.removePhotoFailed"));
+    } finally {
+      setRemovingPhoto(false);
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -234,6 +254,16 @@ export default function PersonEditModal({ individual, onClose, onSaved }: Props)
               accept="image/*"
               className="w-full text-sm text-stone-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
             />
+            {hasPhoto && (
+              <button
+                type="button"
+                onClick={handleRemovePhoto}
+                disabled={removingPhoto}
+                className="mt-2 text-sm text-red-600 hover:text-red-700 disabled:opacity-50 cursor-pointer"
+              >
+                {removingPhoto ? t("editPerson.removingPhoto") : t("editPerson.removePhoto")}
+              </button>
+            )}
           </div>
 
           {/* More details (collapsible) */}

@@ -258,6 +258,39 @@ func (h *Handler) UploadPhoto(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"photo_url": photoProxyURL(id), "photo_key": key})
 }
 
+// DeletePhoto removes an individual's photo from S3 and clears the DB reference.
+// Returns 204 No Content on success, even if the person had no photo.
+func (h *Handler) DeletePhoto(c echo.Context) error {
+	id := c.Param("id")
+	if !uuidRegex.MatchString(id) {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id format"})
+	}
+
+	ctx := c.Request().Context()
+	indi, err := h.deps.IndividualRepo.GetByID(ctx, id)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "individual not found"})
+	}
+
+	// Nothing to do if no photo is attached.
+	if indi.PhotoKey == "" {
+		return c.NoContent(http.StatusNoContent)
+	}
+
+	// Best-effort S3 delete: if it fails (network/transient), log and still
+	// clear the DB reference so the user-visible state is consistent.
+	if err := h.deps.Storage.Delete(ctx, indi.PhotoKey); err != nil {
+		log.Printf("delete photo from S3 (key=%s): %v", indi.PhotoKey, err)
+	}
+
+	if err := h.deps.IndividualRepo.UpdatePhoto(ctx, id, ""); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "db update failed"})
+	}
+
+	go h.backupGedcomToS3()
+	return c.NoContent(http.StatusNoContent)
+}
+
 // GetPhoto streams an individual's photo from S3 to the client.
 func (h *Handler) GetPhoto(c echo.Context) error {
 	id := c.Param("id")
