@@ -83,10 +83,40 @@ export default function AddPersonButton({
           }
         }
 
-        await createFamily({
-          husband_id: husbandId,
-          wife_id: wifeId,
-        });
+        // If an existing family with a missing spouse was passed in (ancestor
+        // case: the person already belongs to a family that needs its empty
+        // slot filled), fill that slot rather than creating a competing
+        // family. Without this, the ancestor tree never reaches the new
+        // spouse — see fix/ancestor-add-spouse-fills-empty-slot.
+        if (familyApiId) {
+          const currentFamily = await getFamily(familyApiId);
+          const updatedPayload: CreateFamilyPayload = {
+            husband_id: currentFamily.husband_id,
+            wife_id: currentFamily.wife_id,
+            marriage_date: currentFamily.marriage_date,
+            marriage_place: currentFamily.marriage_place,
+            divorce_date: currentFamily.divorce_date,
+            note: currentFamily.note,
+            child_ids: currentFamily.child_ids || [],
+          };
+          // Fill whichever slot is currently empty with the new person.
+          if (!currentFamily.husband_id && currentFamily.wife_id) {
+            updatedPayload.husband_id = newPerson.id;
+          } else if (!currentFamily.wife_id && currentFamily.husband_id) {
+            updatedPayload.wife_id = newPerson.id;
+          } else {
+            // Both slots are either filled or both empty — fall back to the
+            // sex-based assignment computed above.
+            updatedPayload.husband_id = husbandId;
+            updatedPayload.wife_id = wifeId;
+          }
+          await updateFamily(familyApiId, updatedPayload);
+        } else {
+          await createFamily({
+            husband_id: husbandId,
+            wife_id: wifeId,
+          });
+        }
       } else if (type === "parent") {
         if (familyApiId) {
           // Parent family already exists but is missing a parent — fill the empty slot
