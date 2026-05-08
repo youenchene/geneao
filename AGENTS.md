@@ -38,4 +38,5 @@ Geneao — a web app for browsing and editing genealogy data. React SPA frontend
 
 - **Never commit code changes directly to `main`.** If the current branch is `main`, create a dedicated branch (e.g. `feat/short-description` or `fix/short-description`) before making any changes.
 - Open a Pull Request to merge the branch back into `main`.
-- Only push after the user has tested the changes locally.
+- **Never push, open a PR, or merge before the user has manually tested the changes locally.** After committing on the feature branch, stop and wait for the user to confirm tests passed. The user will explicitly say "push", "open PR", or "merge" once their manual test succeeds.
+- The only exception is when the user explicitly tells the agent to commit, push, and merge in one go (e.g. "commit, push, merge" or "go full"). In that case, proceed without waiting.
