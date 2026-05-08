@@ -65,6 +65,26 @@ function getParentFamilyApiId(data: GedcomData, individual: Individual): string 
   return family?.apiId;
 }
 
+/**
+ * Find the API ID of an existing spouse family of this person where the
+ * other spouse slot is empty (so a new alliance button should fill it
+ * rather than create a competing family). Returns undefined if no such
+ * family exists.
+ */
+function getSpouselessFamilyApiId(data: GedcomData, individual: Individual): string | undefined {
+  for (const famId of individual.familiesAsSpouse) {
+    const family = data.families.get(famId);
+    if (!family) continue;
+    const husbandMissing = !family.husbandId;
+    const wifeMissing = !family.wifeId;
+    if (husbandMissing !== wifeMissing) {
+      // Exactly one slot is empty → safe to fill.
+      return family.apiId;
+    }
+  }
+  return undefined;
+}
+
 export default function TreeNodeView({
   posNode,
   data,
@@ -286,12 +306,16 @@ export default function TreeNodeView({
           />
         )}
 
-        {/* Edit mode: Add alliance buttons */}
+        {/* Edit mode: Add alliance buttons.
+            When the couple has only one spouse, we fill the empty slot of the
+            existing family rather than creating a competing one — pass
+            familyApiId so the handler updates instead of creating. */}
         {editMode && node.husband && !node.wife && (
           <AddPersonButton
             type="alliance" x={startX + CARD_W + COUPLE_GAP + CARD_W / 2} y={startY + CARD_H / 2}
             linkedIndividualApiId={node.husband.apiId || ""}
             linkedIndividualSex={node.husband.sex}
+            familyApiId={node.family?.apiId}
             onCreated={() => onDataChanged?.()}
           />
         )}
@@ -300,6 +324,7 @@ export default function TreeNodeView({
             type="alliance" x={startX + CARD_W / 2} y={startY + CARD_H / 2}
             linkedIndividualApiId={node.wife.apiId || ""}
             linkedIndividualSex={node.wife.sex}
+            familyApiId={node.family?.apiId}
             onCreated={() => onDataChanged?.()}
           />
         )}
@@ -396,12 +421,15 @@ export default function TreeNodeView({
         />
       )}
 
-      {/* Edit mode: Add alliance button */}
+      {/* Edit mode: Add alliance button.
+          If the individual already belongs to a family with an empty spouse
+          slot, fill that slot rather than creating a competing family. */}
       {editMode && node.individual && (
         <AddPersonButton
           type="alliance" x={x + CARD_W / 2 + 14} y={startY + CARD_H / 2}
           linkedIndividualApiId={node.individual.apiId || ""}
           linkedIndividualSex={node.individual.sex}
+          familyApiId={getSpouselessFamilyApiId(data, node.individual)}
           onCreated={() => onDataChanged?.()}
         />
       )}
