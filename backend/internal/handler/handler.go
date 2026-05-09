@@ -179,13 +179,18 @@ func (h *Handler) DeleteIndividual(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "individual not found"})
 	}
 
-	// Check if the person has children — if so, deletion is forbidden
+	// Check if the person is an internal node (has both parents and children).
+	// We allow deleting "leaves" (people with no children OR people with no parents).
 	hasChildren, err := h.deps.IndividualRepo.HasChildren(ctx, id)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-	if hasChildren {
-		return c.JSON(http.StatusConflict, map[string]string{"error": "cannot delete a person who has children"})
+	hasParents, err := h.deps.IndividualRepo.HasParents(ctx, id)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	if hasChildren && hasParents {
+		return c.JSON(http.StatusConflict, map[string]string{"error": "cannot delete a person who has both parents and children"})
 	}
 
 	cs, err := h.deps.ChangeSetRepo.Create(ctx,
