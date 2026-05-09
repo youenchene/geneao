@@ -194,6 +194,19 @@ func (r *IndividualRepo) HasChildren(ctx context.Context, id string) (bool, erro
 	return count > 0, nil
 }
 
+// HasParents returns true if the individual is a child in any family.
+func (r *IndividualRepo) HasParents(ctx context.Context, id string) (bool, error) {
+	var count int
+	err := r.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM family_children
+		WHERE child_id = $1`, id).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check parents for %s: %w", id, err)
+	}
+	return count > 0, nil
+}
+
 // Delete removes an individual and cleans up family references.
 // It nullifies husband_id/wife_id in families where the person is a spouse,
 // removes the person from family_children where they appear as a child,
