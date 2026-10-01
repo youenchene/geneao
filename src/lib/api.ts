@@ -68,13 +68,13 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
 // ---- Auth ----
 
-export async function login(password: string): Promise<string> {
-  const res = await apiFetch<{ token: string }>("/api/login", {
+export async function login(password: string): Promise<void> {
+  // The JWT is set as an HttpOnly cookie; the body only confirms success.
+  const res = await apiFetch<{ authenticated: boolean }>("/api/login", {
     method: "POST",
     body: JSON.stringify({ password }),
   });
-  setToken(res.token);
-  return res.token;
+  setToken(res.authenticated ? "cookie" : null);
 }
 
 export function logout() {

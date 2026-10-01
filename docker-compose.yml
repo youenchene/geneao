@@ -57,7 +57,7 @@ services:
       PORT: "8080"
       DATABASE_URL: postgres://geneao:geneao@db:5432/geneao?sslmode=disable
       GENEAO_PASSWORD: changeme
-      JWT_SECRET: local-dev-secret-change-in-prod
+      JWT_SECRET: local-dev-only-jwt-secret-change-in-prod
       S3_ENDPOINT: http://storage:9000
       S3_BUCKET: geneao
       S3_REGION: us-east-1

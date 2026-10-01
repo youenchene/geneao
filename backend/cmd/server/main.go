@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,8 +26,13 @@ func main() {
 	// ---- Configuration from environment ----
 	port := envOrDefault("PORT", "8080")
 	dbURL := envOrDefault("DATABASE_URL", "postgres://geneao:geneao@localhost:5432/geneao?sslmode=disable")
-	sharedPassword := envOrDefault("GENEAO_PASSWORD", "changeme")
-	jwtSecret := envOrDefault("JWT_SECRET", "super-secret-change-me")
+	// Secrets have no fallback: a hardcoded default would let anyone forge
+	// tokens or log in if the env var is forgotten in production.
+	sharedPassword := mustEnv("GENEAO_PASSWORD")
+	jwtSecret := mustEnv("JWT_SECRET")
+	if len(jwtSecret) < minJWTSecretLen {
+		log.Fatalf("JWT_SECRET must be at least %d bytes long", minJWTSecretLen)
+	}
 
 	appTitle := os.Getenv("GENEAO_TITLE") // optional override for the frontend app title
 
@@ -87,9 +93,22 @@ func main() {
 	e := echo.New()
 	e.HideBanner = true
 
+	// Derive the client IP from X-Forwarded-For only through trusted (private /
+	// loopback) proxies. Without this, RealIP() trusts any client-supplied
+	// header and the login rate limiter can be bypassed by spoofing it.
+	e.IPExtractor = echo.ExtractIPFromXFFHeader()
+
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	// Cap request bodies slightly above the 10 MB upload limit.
+	e.Use(middleware.BodyLimit("11M"))
+	e.Use(middleware.SecureWithConfig(middleware.SecureConfig{
+		XSSProtection:      "0",
+		ContentTypeNosniff: "nosniff",
+		XFrameOptions:      "DENY",
+		ReferrerPolicy:     "strict-origin-when-cross-origin",
+	}))
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins:     strings.Split(allowedOrigins, ","),
 		AllowMethods:     []string{echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.OPTIONS},
@@ -156,7 +175,7 @@ func main() {
 
 	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 	log.Println("Shutting down...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -164,6 +183,18 @@ func main() {
 	if err := e.Shutdown(ctx); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// minJWTSecretLen is the minimum HMAC key length (256 bits for HS256).
+const minJWTSecretLen = 32
+
+// mustEnv returns the value of a required environment variable or exits.
+func mustEnv(key string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		log.Fatalf("required environment variable %s is not set", key)
+	}
+	return v
 }
 
 func envOrDefault(key, defaultVal string) string {

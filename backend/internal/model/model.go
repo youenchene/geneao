@@ -100,6 +100,8 @@ type LoginRequest struct {
 }
 
 // LoginResponse is returned on successful login.
+// The JWT itself is only delivered via the HttpOnly cookie so that it is
+// never exposed to JavaScript (and therefore to XSS).
 type LoginResponse struct {
-	Token string `json:"token"`
+	Authenticated bool `json:"authenticated"`
 }

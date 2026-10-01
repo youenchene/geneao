@@ -75,7 +75,7 @@ func Middleware(jwtSecret string) echo.MiddlewareFunc {
 					return nil, echo.NewHTTPError(http.StatusUnauthorized, "unexpected signing method")
 				}
 				return secret, nil
-			})
+			}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 			if err != nil || !token.Valid {
 				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid or expired token"})
 			}
