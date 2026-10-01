@@ -87,7 +87,7 @@ func (h *Handler) Login(c echo.Context) error {
 		MaxAge:   86400, // 24 hours
 	})
 
-	return c.JSON(http.StatusOK, model.LoginResponse{Token: token})
+	return c.JSON(http.StatusOK, model.LoginResponse{Authenticated: true})
 }
 
 // GetConfig returns public frontend configuration.
@@ -326,7 +326,8 @@ func (h *Handler) GetPhoto(c echo.Context) error {
 		contentType = "image/webp"
 	}
 
-	c.Response().Header().Set("Cache-Control", "public, max-age=3600")
+	// Photos sit behind auth: never let shared caches (CDN/proxy) store them.
+	c.Response().Header().Set("Cache-Control", "private, max-age=3600")
 	return c.Stream(http.StatusOK, contentType, body)
 }
 
