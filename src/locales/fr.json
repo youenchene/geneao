@@ -1,4 +1,27 @@
 {
+  "directory": {
+    "viewLabel": "Vue des données généalogiques",
+    "tree": "Arbre",
+    "directory": "Annuaire",
+    "description": "Les coordonnées des personnes de l’arbre, sans double saisie.",
+    "search": "Recherche dans l’annuaire",
+    "searchPlaceholder": "Nom, prénom, ville, téléphone ou e-mail…",
+    "reset": "Effacer les recherches",
+    "count_one": "{{count}} personne sur {{total}}",
+    "count_other": "{{count}} personnes sur {{total}}",
+    "editHint": "Les modifications sont aussi visibles dans l’arbre.",
+    "viewHint": "Activez le mode édition pour compléter les coordonnées.",
+    "sortBy": "Trier par {{field}}",
+    "filterBy": "Rechercher dans la colonne {{field}}",
+    "filter": "Rechercher…",
+    "actions": "Fiche",
+    "edit": "Modifier",
+    "details": "Consulter",
+    "editPerson": "Modifier la fiche de {{name}}",
+    "viewPerson": "Consulter la fiche de {{name}}",
+    "noResults": "Aucune personne ne correspond à votre recherche.",
+    "columns": { "surname": "Nom", "givenName": "Prénom", "livingCity": "Ville", "phone": "Téléphone", "email": "E-mail" }
+  },
   "app": {
     "name": "Geneao",
     "loading": "Chargement des donn\u00e9es\u2026",
