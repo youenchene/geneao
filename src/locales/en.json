@@ -1,4 +1,27 @@
 {
+  "directory": {
+    "viewLabel": "Genealogy data view",
+    "tree": "Tree",
+    "directory": "Directory",
+    "description": "Contact details from the family tree, with no duplicate entry.",
+    "search": "Search the directory",
+    "searchPlaceholder": "Surname, given name, city, phone or email…",
+    "reset": "Clear searches",
+    "count_one": "{{count}} person out of {{total}}",
+    "count_other": "{{count}} people out of {{total}}",
+    "editHint": "Changes also appear in the tree.",
+    "viewHint": "Enable edit mode to update contact details.",
+    "sortBy": "Sort by {{field}}",
+    "filterBy": "Search the {{field}} column",
+    "filter": "Search…",
+    "actions": "Record",
+    "edit": "Edit",
+    "details": "View",
+    "editPerson": "Edit the record for {{name}}",
+    "viewPerson": "View the record for {{name}}",
+    "noResults": "No people match your search.",
+    "columns": { "surname": "Surname", "givenName": "Given name", "livingCity": "City", "phone": "Phone", "email": "Email" }
+  },
   "app": {
     "name": "Geneao",
     "loading": "Loading GEDCOM data\u2026",

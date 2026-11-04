@@ -1,3 +1,4 @@
+/** Application shell sharing authenticated genealogy data across tree and directory views. */
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import type { GedcomData } from "./lib/gedcom-parser";
@@ -12,6 +13,7 @@ import ImportGedcomModal from "./components/ImportGedcomModal";
 import CustomViewerPage from "./pages/CustomViewerPage";
 import OnboardingOverlay from "./components/OnboardingOverlay";
 import LoginPage from "./pages/LoginPage";
+import DirectoryPage from "./pages/DirectoryPage";
 
 export default function App() {
   const { t } = useTranslation();
@@ -20,6 +22,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [view, setView] = useState<"tree" | "directory">("tree");
   const [appTitle, setAppTitle] = useState<string | null>(null);
 
   // Fetch optional title override from backend config (GENEAO_TITLE).
@@ -113,10 +116,25 @@ export default function App() {
             />
           </div>
         </nav>
-        <div className="flex-1 overflow-hidden">
-          <CustomViewerPage data={data} onDataChanged={refreshData} />
+        <div className="flex gap-1 border-b border-stone-200 bg-white px-4 py-2" role="group" aria-label={t("directory.viewLabel")}>
+          {(["tree", "directory"] as const).map((item) => (
+            <button
+              key={item}
+              onClick={() => setView(item)}
+              aria-pressed={view === item}
+              className={`rounded-lg px-4 py-2 text-sm font-medium cursor-pointer ${view === item ? "bg-amber-100 text-amber-900" : "text-stone-600 hover:bg-stone-100"}`}
+            >
+              {t(`directory.${item}`)}
+            </button>
+          ))}
         </div>
-        <OnboardingOverlay />
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <div className={view === "tree" ? "h-full" : "hidden"}>
+            <CustomViewerPage data={data} onDataChanged={refreshData} />
+          </div>
+          {view === "directory" && <DirectoryPage data={data} onDataChanged={refreshData} />}
+        </div>
+        {view === "tree" && <OnboardingOverlay />}
         {showImport && (
           <ImportGedcomModal
             onClose={() => setShowImport(false)}
